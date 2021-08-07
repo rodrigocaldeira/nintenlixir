@@ -25,8 +25,16 @@ defmodule Nintenlixir.RegistersTest do
     assert @initial_registers_state == Registers.get_registers(@processor)
   end
 
-  test "Registers.reset/0 should reset the registers" do
-    Registers.reset(@processor)
+  test "Registers.set_registers/2 should update the registers" do
+    registers = Registers.get_registers(@processor)
+    assert :ok = Registers.set_registers(@processor, %{registers | program_counter: 0xFFFF})
+
+    assert %{@initial_registers_state | program_counter: 0xFFFF} ==
+             Registers.get_registers(@processor)
+  end
+
+  test "Registers.reset/1 should reset the registers" do
+    assert :ok = Registers.reset(@processor)
     assert @initial_registers_state == Registers.get_registers(@processor)
   end
 end

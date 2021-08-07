@@ -10,7 +10,7 @@ defmodule Nintenlixir.Memory do
   end
 
   def reset(processor) do
-    GenServer.cast(processor, :reset)
+    GenServer.call(processor, :reset)
   end
 
   def read(processor, address) do
@@ -18,7 +18,7 @@ defmodule Nintenlixir.Memory do
   end
 
   def write(processor, address, value) do
-    GenServer.cast(processor, {:write, {address, value}})
+    GenServer.call(processor, {:write, {address, value}})
   end
 
   # Server
@@ -43,19 +43,18 @@ defmodule Nintenlixir.Memory do
     {:reply, {:error, :cannot_read}, state}
   end
 
-  @impl GenServer
-  def handle_cast(:reset, _) do
-    {:noreply, reset_memory()}
+  def handle_call(:reset, _, _) do
+    {:reply, :ok, reset_memory()}
   end
 
-  def handle_cast({:write, {address, _}}, state)
+  def handle_call({:write, {address, _}}, _, state)
       when address >= @memory_size or
              address < 0x00,
-      do: {:noreply, state}
+      do: {:reply, :ok, state}
 
-  def handle_cast({:write, {address, value}}, %{can_write: true, memory: memory} = state) do
+  def handle_call({:write, {address, value}}, _, %{can_write: true, memory: memory} = state) do
     new_memory = List.replace_at(memory, address, value)
-    {:noreply, %{state | memory: new_memory}}
+    {:reply, :ok, %{state | memory: new_memory}}
   end
 
   # Private helpers

@@ -11,11 +11,15 @@ defmodule Nintenlixir.Registers do
   end
 
   def reset(processor) do
-    GenServer.cast(processor, :reset)
+    GenServer.call(processor, :reset)
   end
 
   def get_registers(processor) do
     GenServer.call(processor, :get_registers)
+  end
+
+  def set_registers(processor, registers) do
+    GenServer.call(processor, {:set_registers, registers})
   end
 
   # Server
@@ -26,13 +30,16 @@ defmodule Nintenlixir.Registers do
   end
 
   @impl GenServer
-  def handle_cast(:reset, _) do
-    {:noreply, reset_registers()}
+  def handle_call(:reset, _, _) do
+    {:reply, :ok, reset_registers()}
   end
 
-  @impl GenServer
   def handle_call(:get_registers, _, registers) do
     {:reply, registers, registers}
+  end
+
+  def handle_call({:set_registers, new_registers}, _, _) do
+    {:reply, :ok, new_registers}
   end
 
   # Private helpers
