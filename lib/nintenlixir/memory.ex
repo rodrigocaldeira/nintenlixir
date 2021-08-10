@@ -1,5 +1,6 @@
 defmodule Nintenlixir.Memory do
   use GenServer
+  use Bitwise
 
   @memory_size 65_536
 
@@ -19,6 +20,10 @@ defmodule Nintenlixir.Memory do
 
   def write(processor, address, value) do
     GenServer.call(processor, {:write, {address, value}})
+  end
+
+  def same_page?(address1, address2) do
+    bxor(address1, address2) >>> 8 == 0
   end
 
   # Server

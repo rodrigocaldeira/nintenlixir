@@ -47,4 +47,13 @@ defmodule Nintenlixir.MemoryTest do
     assert {:ok, 0xFF} == Memory.read(@processor, 0x69)
     assert {:ok, 0xFF} == Memory.read(@processor, 0x6AFF)
   end
+
+  test "Memory.same_page?/2" do
+    assert Memory.same_page?(0x0100, 0x0140)
+    assert Memory.same_page?(0x0010, 0x00FA)
+    assert Memory.same_page?(0x02CA, 0x02FE)
+    refute Memory.same_page?(0x0001, 0x0100)
+    refute Memory.same_page?(0x0100, 0x02FA)
+    refute Memory.same_page?(0x02CA, 0x03FE)
+  end
 end
