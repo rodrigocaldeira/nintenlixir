@@ -220,6 +220,19 @@ defmodule Nintenlixir.CPUTest do
     assert %{program_counter: 0xFFFD} = get_registers()
   end
 
+  test "CPU.zero_page_address/1" do
+    %{program_counter: pc} = registers = get_registers()
+    set_registers(%{registers | x: 1, y: 2})
+
+    write_memory(pc, 0xCA)
+    write_memory(pc + 1, 0xFE)
+
+    assert {:ok, 0xCB} = CPU.zero_page_address(:x)
+    assert {:ok, 0x0100} = CPU.zero_page_address(:y)
+
+    assert %{program_counter: 0xFFFE} = get_registers()
+  end
+
   test "CPU.relative_address/0 when value in memory is bigger than 0x7F" do
     %{program_counter: pc} = get_registers()
     write_memory(pc, 0x80)
@@ -240,6 +253,45 @@ defmodule Nintenlixir.CPUTest do
     write_memory(pc + 1, 0xCA)
     assert {:ok, 0xCAFE} = CPU.absolute_address()
     assert %{program_counter: 0xFFFE} = get_registers()
+  end
+
+  test "CPU.absolute_address/1 without page cross" do
+    registers = get_registers()
+    pc = 0xFFF0
+    set_registers(%{registers | program_counter: pc, x: 1, y: 2})
+    write_memory(pc, 0xBA)
+    write_memory(pc + 1, 0xBA)
+    write_memory(pc + 2, 0xBA)
+    write_memory(pc + 3, 0xBA)
+    assert {:ok, 0xBABB, :same_page} = CPU.absolute_address(:x)
+    assert {:ok, 0xBABC, :same_page} = CPU.absolute_address(:y)
+    assert %{program_counter: 0xFFF4} = get_registers()
+  end
+
+  test "CPU.absolute_address/1 with page cross" do
+    registers = get_registers()
+    pc = 0xFFF0
+    set_registers(%{registers | program_counter: pc, x: 1, y: 2})
+    write_memory(pc + 1, 0xBA)
+    write_memory(pc + 3, 0xBA)
+    assert {:ok, 0xBB00, :page_cross} = CPU.absolute_address(:x)
+    assert {:ok, 0xBB01, :page_cross} = CPU.absolute_address(:y)
+    assert %{program_counter: 0xFFF4} = get_registers()
+  end
+
+  test "CPU.indirect_address/0" do
+    %{program_counter: pc} = get_registers()
+    write_memory(pc, 0xFE)
+    write_memory(pc + 1, 0xCA)
+
+    write_memory(0xCAFE, 0xFE)
+    write_memory(0xCAFF, 0xCA)
+
+    assert {:ok, 0xCAFE} = CPU.indirect_address()
+    assert %{program_counter: 0xFFFE} = get_registers()
+  end
+
+  test "CPU.indirect_address/1 indexed by X register" do
   end
 
   # Helpers

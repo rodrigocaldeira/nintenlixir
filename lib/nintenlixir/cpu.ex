@@ -204,6 +204,18 @@ defmodule Nintenlixir.CPU do
     {:ok, result}
   end
 
+  def zero_page_address(:x) do
+    {:ok, value} = zero_page_address()
+    %{x: x} = get_registers()
+    {:ok, x + value}
+  end
+
+  def zero_page_address(:y) do
+    {:ok, value} = zero_page_address()
+    %{y: y} = get_registers()
+    {:ok, y + value}
+  end
+
   def relative_address do
     %{program_counter: pc} = registers = get_registers()
     {:ok, value} = read_memory(pc)
@@ -225,6 +237,43 @@ defmodule Nintenlixir.CPU do
     {:ok, low} = read_memory(pc)
     {:ok, high} = read_memory(pc + 1)
     :ok = set_registers(%{registers | program_counter: pc + 2})
+
+    {:ok, high <<< 8 ||| low}
+  end
+
+  def absolute_address(:x) do
+    {:ok, value} = absolute_address()
+    %{x: x} = get_registers()
+    handle_indexed_absolute_address(value, x)
+  end
+
+  def absolute_address(:y) do
+    {:ok, value} = absolute_address()
+    %{y: y} = get_registers()
+    handle_indexed_absolute_address(value, y)
+  end
+
+  defp handle_indexed_absolute_address(address, index) do
+    result = address + index
+
+    if Memory.same_page?(address, result) do
+      {:ok, result, :same_page}
+    else
+      {:ok, result, :page_cross}
+    end
+  end
+
+  def indirect_address do
+    %{program_counter: pc} = registers = get_registers()
+    {:ok, low} = read_memory(pc)
+    {:ok, high} = read_memory(pc + 1)
+    :ok = set_registers(%{registers | program_counter: pc + 2})
+
+    address_high = high <<< 8 ||| low + 1
+    address_low = high <<< 8 ||| low
+
+    {:ok, low} = read_memory(address_low)
+    {:ok, high} = read_memory(address_high)
 
     {:ok, high <<< 8 ||| low}
   end
