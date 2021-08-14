@@ -292,7 +292,38 @@ defmodule Nintenlixir.MOS6502Test do
   end
 
   test "MOS6502.indirect_address/1 indexed by register X" do
+    %{program_counter: pc} = registers = get_registers()
+    set_registers(%{registers | x: 1})
+    write_memory(pc + 1, 0xFE)
+    write_memory(pc + 2 &&& 0x00FF, 0xCA)
 
+    write_memory(0xCAFE, 0xFE)
+    write_memory(0xCAFF, 0xCA)
+
+    assert {:ok, 0xCAFE} = MOS6502.indirect_address(:x)
+    assert %{program_counter: 0xFFFD} = get_registers()
+  end
+
+  test "MOS6502.indirect_address/1 indexed by register Y without page cross" do
+    %{program_counter: pc} = registers = get_registers()
+    set_registers(%{registers | y: 1})
+
+    write_memory(pc, 0xFE)
+    write_memory(pc + 1 &&& 0x00FF, 0xCA)
+
+    assert {:ok, 0xCAFF, :same_page} = MOS6502.indirect_address(:y)
+    assert %{program_counter: 0xFFFD} = get_registers()
+  end
+
+  test "MOS6502.indirect_address/1 indexed by register Y with page cross" do
+    %{program_counter: pc} = registers = get_registers()
+    set_registers(%{registers | y: 1})
+
+    write_memory(pc, 0xFF)
+    write_memory(pc + 1 &&& 0x00FF, 0xCA)
+
+    assert {:ok, 0xCB00, :page_cross} = MOS6502.indirect_address(:y)
+    assert %{program_counter: 0xFFFD} = get_registers()
   end
 
   # Helpers

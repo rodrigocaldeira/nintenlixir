@@ -244,23 +244,13 @@ defmodule Nintenlixir.MOS6502 do
   def absolute_address(:x) do
     {:ok, value} = absolute_address()
     %{x: x} = get_registers()
-    handle_indexed_absolute_address(value, x)
+    handle_indexed_address(value, x)
   end
 
   def absolute_address(:y) do
     {:ok, value} = absolute_address()
     %{y: y} = get_registers()
-    handle_indexed_absolute_address(value, y)
-  end
-
-  defp handle_indexed_absolute_address(address, index) do
-    result = address + index
-
-    if Memory.same_page?(address, result) do
-      {:ok, result, :same_page}
-    else
-      {:ok, result, :page_cross}
-    end
+    handle_indexed_address(value, y)
   end
 
   def indirect_address do
@@ -276,6 +266,39 @@ defmodule Nintenlixir.MOS6502 do
     {:ok, high} = read_memory(address_high)
 
     {:ok, high <<< 8 ||| low}
+  end
+
+  def indirect_address(:x) do
+    %{program_counter: pc, x: x} = registers = get_registers()
+    address = pc + x
+    :ok = set_registers(%{registers | program_counter: pc + 1})
+
+    {:ok, low} = read_memory(address)
+    {:ok, high} = read_memory(address + 1 &&& 0x00FF)
+
+    {:ok, high <<< 8 ||| low}
+  end
+
+  def indirect_address(:y) do
+    %{program_counter: pc, y: y} = registers = get_registers()
+    :ok = set_registers(%{registers | program_counter: pc + 1})
+
+    {:ok, low} = read_memory(pc)
+    {:ok, high} = read_memory(pc + 1 &&& 0x00FF)
+
+    value = high <<< 8 ||| low
+
+    handle_indexed_address(value, y)
+  end
+
+  defp handle_indexed_address(value, index) do
+    result = value + index
+
+    if Memory.same_page?(value, result) do
+      {:ok, result, :same_page}
+    else
+      {:ok, result, :page_cross}
+    end
   end
 
   # Server
