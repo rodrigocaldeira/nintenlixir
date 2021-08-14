@@ -1,4 +1,4 @@
-defmodule Nintenlixir.CPU do
+defmodule Nintenlixir.MOS6502 do
   use GenServer
   use Bitwise
 

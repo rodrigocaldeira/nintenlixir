@@ -1,8 +1,8 @@
-defmodule Nintenlixir.CPUTest do
+defmodule Nintenlixir.MOS6502Test do
   use ExUnit.Case, async: true
   use Bitwise
 
-  alias Nintenlixir.CPU
+  alias Nintenlixir.MOS6502
   alias Nintenlixir.Memory
   alias Nintenlixir.Registers
   alias Nintenlixir.ProcessorStatus
@@ -16,24 +16,24 @@ defmodule Nintenlixir.CPUTest do
   }
 
   setup do
-    start_supervised(CPU)
-    start_supervised({Memory, CPU.memory_server_name()})
-    start_supervised({Registers, CPU.registers_server_name()})
+    start_supervised(MOS6502)
+    start_supervised({Memory, MOS6502.memory_server_name()})
+    start_supervised({Registers, MOS6502.registers_server_name()})
     :ok
   end
 
-  test "CPU.get_state/0" do
-    assert @initial_state == CPU.get_state()
+  test "MOS6502.get_state/0" do
+    assert @initial_state == MOS6502.get_state()
   end
 
-  test "CPU.reset/0" do
-    assert :ok = CPU.reset()
+  test "MOS6502.reset/0" do
+    assert :ok = MOS6502.reset()
   end
 
-  test "CPU.push/1" do
+  test "MOS6502.push/1" do
     %{stack_pointer: sp} = get_registers()
 
-    assert :ok = CPU.push(0xCA)
+    assert :ok = MOS6502.push(0xCA)
 
     %{stack_pointer: new_sp} = get_registers()
 
@@ -42,10 +42,10 @@ defmodule Nintenlixir.CPUTest do
     assert {:ok, 0xCA} = read_memory(0x0100 ||| sp)
   end
 
-  test "CPU.push16/1" do
+  test "MOS6502.push16/1" do
     %{stack_pointer: sp} = get_registers()
 
-    assert :ok = CPU.push16(0xCAFE)
+    assert :ok = MOS6502.push16(0xCAFE)
 
     %{stack_pointer: new_sp} = get_registers()
 
@@ -56,52 +56,52 @@ defmodule Nintenlixir.CPUTest do
     assert {:ok, 0xFE} = read_memory(0x0100 ||| sp - 1)
   end
 
-  test "CPU.pop/0" do
+  test "MOS6502.pop/0" do
     %{stack_pointer: sp} = get_registers()
 
     write_memory(0x0100 ||| sp + 1, 0xCA)
 
-    assert {:ok, 0xCA} = CPU.pop()
+    assert {:ok, 0xCA} = MOS6502.pop()
 
     %{stack_pointer: new_sp} = get_registers()
 
     assert new_sp == sp + 1
   end
 
-  test "CPU.pop16/0" do
+  test "MOS6502.pop16/0" do
     %{stack_pointer: sp} = get_registers()
 
     write_memory(0x0100 ||| sp + 2, 0xCA)
 
     write_memory(0x0100 ||| sp + 1, 0xFE)
 
-    assert {:ok, 0xCAFE} = CPU.pop16()
+    assert {:ok, 0xCAFE} = MOS6502.pop16()
 
     %{stack_pointer: new_sp} = get_registers()
 
     assert new_sp == sp + 2
   end
 
-  test "CPU.irq/0" do
-    assert :ok = CPU.irq()
-    assert %{@initial_state | irq: true} == CPU.get_state()
+  test "MOS6502.irq/0" do
+    assert :ok = MOS6502.irq()
+    assert %{@initial_state | irq: true} == MOS6502.get_state()
   end
 
-  test "CPU.nmi/0" do
-    assert :ok = CPU.nmi()
-    assert %{@initial_state | nmi: true} == CPU.get_state()
+  test "MOS6502.nmi/0" do
+    assert :ok = MOS6502.nmi()
+    assert %{@initial_state | nmi: true} == MOS6502.get_state()
   end
 
-  test "CPU.rst/0" do
-    assert :ok = CPU.rst()
-    assert %{@initial_state | rst: true} == CPU.get_state()
+  test "MOS6502.rst/0" do
+    assert :ok = MOS6502.rst()
+    assert %{@initial_state | rst: true} == MOS6502.get_state()
   end
 
-  test "CPU.interrupt/0 with no interrupts set" do
-    assert {:ok, 0} = CPU.interrupt()
+  test "MOS6502.interrupt/0 with no interrupts set" do
+    assert {:ok, 0} = MOS6502.interrupt()
   end
 
-  test "CPU.interrupt/0 with irq" do
+  test "MOS6502.interrupt/0 with irq" do
     %{processor_status: p} = registers = get_registers()
 
     assert :ok =
@@ -119,10 +119,10 @@ defmodule Nintenlixir.CPUTest do
     {:ok, new_pc_low} = read_memory(0xFFFE)
     {:ok, new_pc_high} = read_memory(0xFFFF)
 
-    assert :ok = CPU.irq()
-    assert %{irq: true} = CPU.get_state()
-    assert {:ok, 7} = CPU.interrupt()
-    assert %{irq: false} = CPU.get_state()
+    assert :ok = MOS6502.irq()
+    assert %{irq: true} = MOS6502.get_state()
+    assert {:ok, 7} = MOS6502.interrupt()
+    assert %{irq: false} = MOS6502.get_state()
 
     %{
       program_counter: new_pc,
@@ -143,7 +143,7 @@ defmodule Nintenlixir.CPUTest do
     assert sp - 3 == new_sp
   end
 
-  test "CPU.interrupt/0 with nmi" do
+  test "MOS6502.interrupt/0 with nmi" do
     %{
       program_counter: pc,
       processor_status: p,
@@ -153,10 +153,10 @@ defmodule Nintenlixir.CPUTest do
     {:ok, new_pc_low} = read_memory(0xFFFA)
     {:ok, new_pc_high} = read_memory(0xFFFB)
 
-    assert :ok = CPU.nmi()
-    assert %{nmi: true} = CPU.get_state()
-    assert {:ok, 7} = CPU.interrupt()
-    assert %{nmi: false} = CPU.get_state()
+    assert :ok = MOS6502.nmi()
+    assert %{nmi: true} = MOS6502.get_state()
+    assert {:ok, 7} = MOS6502.interrupt()
+    assert %{nmi: false} = MOS6502.get_state()
 
     %{
       program_counter: new_pc,
@@ -177,85 +177,85 @@ defmodule Nintenlixir.CPUTest do
     assert sp - 3 == new_sp
   end
 
-  test "CPU.interrupt/0 with rst" do
-    assert :ok = CPU.rst()
-    assert %{rst: true} = CPU.get_state()
-    assert {:ok, 7} = CPU.interrupt()
-    assert %{rst: false} = CPU.get_state()
+  test "MOS6502.interrupt/0 with rst" do
+    assert :ok = MOS6502.rst()
+    assert %{rst: true} = MOS6502.get_state()
+    assert {:ok, 7} = MOS6502.interrupt()
+    assert %{rst: false} = MOS6502.get_state()
     assert %{program_counter: 0xFFFF} = get_registers()
   end
 
-  test "CPU.set_Z_flag/1 with 0x00" do
-    assert {:ok, 0x00} = CPU.set_Z_flag(0x00)
+  test "MOS6502.set_Z_flag/1 with 0x00" do
+    assert {:ok, 0x00} = MOS6502.set_Z_flag(0x00)
     assert %{processor_status: 0x26} = get_registers()
   end
 
-  test "CPU.set_Z_flag/1 with other value" do
-    assert {:ok, 0xCA} = CPU.set_Z_flag(0xCA)
+  test "MOS6502.set_Z_flag/1 with other value" do
+    assert {:ok, 0xCA} = MOS6502.set_Z_flag(0xCA)
     assert %{processor_status: 0x24} = get_registers()
   end
 
-  test "CPU.set_N_flag/1" do
-    assert {:ok, 0xCA} = CPU.set_N_flag(0xCA)
+  test "MOS6502.set_N_flag/1" do
+    assert {:ok, 0xCA} = MOS6502.set_N_flag(0xCA)
     assert %{processor_status: 0xA4} = get_registers()
   end
 
-  test "CPU.set_C_flag_addition/1" do
-    assert {:ok, 0xCA} = CPU.set_C_flag_addition(0xCA)
+  test "MOS6502.set_C_flag_addition/1" do
+    assert {:ok, 0xCA} = MOS6502.set_C_flag_addition(0xCA)
     assert %{processor_status: 0x24} = get_registers()
   end
 
-  test "CPU.set_V_flag_addition/3" do
-    assert {:ok, 0x80} = CPU.set_V_flag_addition(0x78, 0x08, 0x80)
+  test "MOS6502.set_V_flag_addition/3" do
+    assert {:ok, 0x80} = MOS6502.set_V_flag_addition(0x78, 0x08, 0x80)
     assert %{processor_status: 0x64} = get_registers()
   end
 
-  test "CPU.immediate_address/0" do
-    assert {:ok, 0xFFFC} = CPU.immediate_address()
+  test "MOS6502.immediate_address/0" do
+    assert {:ok, 0xFFFC} = MOS6502.immediate_address()
     assert %{program_counter: 0xFFFD} = get_registers()
   end
 
-  test "CPU.zero_page_address/0" do
-    {:ok, 0xFF} = CPU.zero_page_address()
+  test "MOS6502.zero_page_address/0" do
+    {:ok, 0xFF} = MOS6502.zero_page_address()
     assert %{program_counter: 0xFFFD} = get_registers()
   end
 
-  test "CPU.zero_page_address/1" do
+  test "MOS6502.zero_page_address/1" do
     %{program_counter: pc} = registers = get_registers()
     set_registers(%{registers | x: 1, y: 2})
 
     write_memory(pc, 0xCA)
     write_memory(pc + 1, 0xFE)
 
-    assert {:ok, 0xCB} = CPU.zero_page_address(:x)
-    assert {:ok, 0x0100} = CPU.zero_page_address(:y)
+    assert {:ok, 0xCB} = MOS6502.zero_page_address(:x)
+    assert {:ok, 0x0100} = MOS6502.zero_page_address(:y)
 
     assert %{program_counter: 0xFFFE} = get_registers()
   end
 
-  test "CPU.relative_address/0 when value in memory is bigger than 0x7F" do
+  test "MOS6502.relative_address/0 when value in memory is bigger than 0x7F" do
     %{program_counter: pc} = get_registers()
     write_memory(pc, 0x80)
-    assert {:ok, 0xFF7D} = CPU.relative_address()
+    assert {:ok, 0xFF7D} = MOS6502.relative_address()
     assert %{program_counter: 0xFFFD} = get_registers()
   end
 
-  test "CPU.relative_address/0 when value in memory is lesser or equal to 0x7F" do
+  test "MOS6502.relative_address/0 when value in memory is lesser or equal to 0x7F" do
     %{program_counter: pc} = get_registers()
     write_memory(pc, 0x7F)
-    assert {:ok, 0x7C} = CPU.relative_address()
+    assert {:ok, 0x7C} = MOS6502.relative_address()
     assert %{program_counter: 0xFFFD} = get_registers()
   end
 
-  test "CPU.absolute_address/0" do
+  test "MOS6502.absolute_address/0" do
     %{program_counter: pc} = get_registers()
     write_memory(pc, 0xFE)
     write_memory(pc + 1, 0xCA)
-    assert {:ok, 0xCAFE} = CPU.absolute_address()
+    assert {:ok, 0xCAFE} = MOS6502.absolute_address()
     assert %{program_counter: 0xFFFE} = get_registers()
   end
 
-  test "CPU.absolute_address/1 without page cross" do
+  test "MOS6502.absolute_address/1 without page cross" do
     registers = get_registers()
     pc = 0xFFF0
     set_registers(%{registers | program_counter: pc, x: 1, y: 2})
@@ -263,23 +263,23 @@ defmodule Nintenlixir.CPUTest do
     write_memory(pc + 1, 0xBA)
     write_memory(pc + 2, 0xBA)
     write_memory(pc + 3, 0xBA)
-    assert {:ok, 0xBABB, :same_page} = CPU.absolute_address(:x)
-    assert {:ok, 0xBABC, :same_page} = CPU.absolute_address(:y)
+    assert {:ok, 0xBABB, :same_page} = MOS6502.absolute_address(:x)
+    assert {:ok, 0xBABC, :same_page} = MOS6502.absolute_address(:y)
     assert %{program_counter: 0xFFF4} = get_registers()
   end
 
-  test "CPU.absolute_address/1 with page cross" do
+  test "MOS6502.absolute_address/1 with page cross" do
     registers = get_registers()
     pc = 0xFFF0
     set_registers(%{registers | program_counter: pc, x: 1, y: 2})
     write_memory(pc + 1, 0xBA)
     write_memory(pc + 3, 0xBA)
-    assert {:ok, 0xBB00, :page_cross} = CPU.absolute_address(:x)
-    assert {:ok, 0xBB01, :page_cross} = CPU.absolute_address(:y)
+    assert {:ok, 0xBB00, :page_cross} = MOS6502.absolute_address(:x)
+    assert {:ok, 0xBB01, :page_cross} = MOS6502.absolute_address(:y)
     assert %{program_counter: 0xFFF4} = get_registers()
   end
 
-  test "CPU.indirect_address/0" do
+  test "MOS6502.indirect_address/0" do
     %{program_counter: pc} = get_registers()
     write_memory(pc, 0xFE)
     write_memory(pc + 1, 0xCA)
@@ -287,19 +287,20 @@ defmodule Nintenlixir.CPUTest do
     write_memory(0xCAFE, 0xFE)
     write_memory(0xCAFF, 0xCA)
 
-    assert {:ok, 0xCAFE} = CPU.indirect_address()
+    assert {:ok, 0xCAFE} = MOS6502.indirect_address()
     assert %{program_counter: 0xFFFE} = get_registers()
   end
 
-  test "CPU.indirect_address/1 indexed by X register" do
+  test "MOS6502.indirect_address/1 indexed by register X" do
+
   end
 
   # Helpers
-  def get_registers, do: Registers.get_registers(CPU.registers_server_name())
+  def get_registers, do: Registers.get_registers(MOS6502.registers_server_name())
 
   def set_registers(registers),
-    do: Registers.set_registers(CPU.registers_server_name(), registers)
+    do: Registers.set_registers(MOS6502.registers_server_name(), registers)
 
-  def read_memory(address), do: Memory.read(CPU.memory_server_name(), address)
-  def write_memory(address, value), do: Memory.write(CPU.memory_server_name(), address, value)
+  def read_memory(address), do: Memory.read(MOS6502.memory_server_name(), address)
+  def write_memory(address, value), do: Memory.write(MOS6502.memory_server_name(), address, value)
 end
