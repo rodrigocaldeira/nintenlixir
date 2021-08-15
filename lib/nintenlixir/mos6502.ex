@@ -162,6 +162,12 @@ defmodule Nintenlixir.MOS6502 do
     {:ok, value}
   end
 
+  def set_ZN_flags(value) do
+    {:ok, ^value} = set_Z_flag(value)
+    {:ok, ^value} = set_N_flag(value)
+    {:ok, value}
+  end
+
   def set_C_flag_addition(value) do
     %{processor_status: p} = registers = get_registers()
 
@@ -291,14 +297,250 @@ defmodule Nintenlixir.MOS6502 do
     handle_indexed_address(value, y)
   end
 
-  defp handle_indexed_address(value, index) do
-    result = value + index
+  def load(address, register) do
+    {:ok, value} = read_memory(address)
+    {:ok, result} = set_ZN_flags(value)
+    registers = get_registers() |> Map.put(register, result)
+    :ok = set_registers(registers)
+    {:ok, result}
+  end
 
-    if Memory.same_page?(value, result) do
-      {:ok, result, :same_page}
+  def lda(address) do
+    {:ok, _} = load(address, :accumulator)
+    :ok
+  end
+
+  def lax(address) do
+    registers = get_registers()
+    {:ok, x} = read_memory(address)
+    set_registers(%{registers | x: x})
+    {:ok, _} = load(address, :accumulator)
+    :ok
+  end
+
+  def ldx(address) do
+    {:ok, _} = load(address, :x)
+    :ok
+  end
+
+  def ldy(address) do
+    {:ok, _} = load(address, :y)
+    :ok
+  end
+
+  def sax(address) do
+    %{accumulator: a, x: x} = get_registers()
+    write_memory(address, a &&& x)
+  end
+
+  def sta(address) do
+    %{accumulator: a} = get_registers()
+    write_memory(address, a)
+  end
+
+  def stx(address) do
+    %{x: x} = get_registers()
+    write_memory(address, x)
+  end
+
+  def sty(address) do
+    %{y: y} = get_registers()
+    write_memory(address, y)
+  end
+
+  def transfer(from, to) do
+    registers = get_registers()
+    value_from = Map.get(registers, from)
+    {:ok, ^value_from} = set_ZN_flags(value_from)
+
+    registers
+    |> Map.put(to, value_from)
+    |> set_registers()
+  end
+
+  def tax, do: transfer(:accumulator, :x)
+  def tay, do: transfer(:accumulator, :y)
+  def txa, do: transfer(:x, :accumulator)
+  def tya, do: transfer(:y, :accumulator)
+  def tsx, do: transfer(:stack_pointer, :x)
+
+  def txs do
+    %{x: x} = registers = get_registers()
+    set_registers(%{registers | stack_pointer: x})
+  end
+
+  def pha do
+    %{accumulator: a} = get_registers()
+    push(a)
+  end
+
+  def php do
+    %{processor_status: p} = get_registers()
+    push(p ||| ProcessorStatus.BreakCommand.value() ||| ProcessorStatus.Unused.value())
+  end
+
+  def pla do
+    {:ok, value} = pop()
+    {:ok, ^value} = set_ZN_flags(value)
+    set_registers(%{get_registers() | accumulator: value})
+  end
+
+  def plp do
+    {:ok, value} = pop()
+    p = value &&& ~~~(ProcessorStatus.BreakCommand.value() ||| ProcessorStatus.Unused.value())
+    set_registers(%{get_registers() | processor_status: p})
+  end
+
+  def and_op(address) do
+    {:ok, value} = read_memory(address)
+    %{accumulator: a} = registers = get_registers()
+    {:ok, result} = set_ZN_flags(a &&& value)
+    set_registers(%{registers | accumulator: result})
+  end
+
+  def xor_op(address) do
+    {:ok, value} = read_memory(address)
+    %{accumulator: a} = registers = get_registers()
+    {:ok, result} = set_ZN_flags(bxor(a, value))
+    set_registers(%{registers | accumulator: result})
+  end
+
+  def or_op(address) do
+    {:ok, value} = read_memory(address)
+    %{accumulator: a} = registers = get_registers()
+    {:ok, result} = set_ZN_flags(a ||| value)
+    set_registers(%{registers | accumulator: result})
+  end
+
+  def bit(address) do
+    {:ok, value} = read_memory(address)
+    %{accumulator: a, processor_status: p} = registers = get_registers()
+    {:ok, _} = set_Z_flag(value &&& a)
+
+    p =
+      (p &&& ~~~(ProcessorStatus.NegativeFlag.value() ||| ProcessorStatus.OverflowFlag.value())) |||
+        (value &&& (ProcessorStatus.NegativeFlag.value() ||| ProcessorStatus.OverflowFlag.value()))
+
+    set_registers(%{registers | processor_status: p})
+  end
+
+  def disable_decimal_mode do
+    GenServer.call(__MODULE__, {:set_state, %{get_state() | decimal_mode: false}})
+  end
+
+  def addition(value) do
+    %{accumulator: a, processor_status: p} = registers = get_registers()
+    %{decimal_mode: decimal_mode} = get_state()
+
+    if !decimal_mode || (p &&& ProcessorStatus.DecimalMode.value()) == 0 do
+      {:ok, result} = set_C_flag_addition(a + value + (p &&& ProcessorStatus.CarryFlag.value()))
+      {:ok, ^result} = set_V_flag_addition(a, value, result)
+      {:ok, ^result} = set_ZN_flags(result)
+      set_registers(%{registers | accumulator: result})
     else
-      {:ok, result, :page_cross}
+      low = (a &&& 0x000F) + (value &&& 0x000F) + (p &&& ProcessorStatus.CarryFlag.value())
+      high = (a &&& 0x00F0) + (value &&& 0x00F0)
+
+      low =
+        if low >= 0x000A do
+          low - 0x000A
+        else
+          low
+        end
+
+      high =
+        if low >= 0x000A do
+          high + 0x0010
+        else
+          high
+        end
+
+      high =
+        if high >= 0x00A0 do
+          high - 0x00A0
+        else
+          high
+        end
+
+      {:ok, result} = set_C_flag_addition(high ||| (low &&& 0x000F))
+      {:ok, ^result} = set_V_flag_addition(a, value, result)
+      {:ok, ^result} = set_ZN_flags(result)
+      set_registers(%{registers | accumulator: result})
     end
+  end
+
+  def adc(address) do
+    {:ok, value} = read_memory(address)
+    addition(value)
+  end
+
+  def sbc(address) do
+    {:ok, value} = read_memory(address)
+
+    %{processor_status: p} = get_registers()
+    %{decimal_mode: decimal_mode} = get_state()
+
+    value =
+      if !decimal_mode || (p &&& ProcessorStatus.DecimalMode.value()) == 0 do
+        bxor(value, 0xFF)
+      else
+        0x99 - value
+      end
+
+    addition(value)
+  end
+
+  def compare(value1, value2) do
+    value = bxor(value1, 0xFF) + 1
+    {:ok, result} = set_C_flag_addition(value2 + value)
+    {:ok, ^result} = set_ZN_flags(result)
+    :ok
+  end
+
+  def cmp(address) do
+    {:ok, value} = read_memory(address)
+    %{accumulator: a} = get_registers()
+    compare(value, a)
+  end
+
+  def cpx(address) do
+    {:ok, value} = read_memory(address)
+    %{x: x} = get_registers()
+    compare(value, x)
+  end
+
+  def cpy(address) do
+    {:ok, value} = read_memory(address)
+    %{y: y} = get_registers()
+    compare(value, y)
+  end
+
+  def inc(register) when is_atom(register) do
+    registers = get_registers()
+    value = Map.get(registers, register) + 1
+    set_ZN_flags(value)
+    set_registers(registers |> Map.put(register, value))
+  end
+
+  def inc(address) do
+    {:ok, value} = read_memory(address)
+    value = value + 1
+    set_ZN_flags(value)
+    write_memory(address, value)
+  end
+
+  def dec(register) when is_atom(register) do
+    registers = get_registers()
+    value = Map.get(registers, register) - 1
+    set_ZN_flags(value)
+    set_registers(registers |> Map.put(register, value))
+  end
+
+  def dec(address) do
+    {:ok, value} = read_memory(address)
+    value = value - 1
+    set_ZN_flags(value)
+    write_memory(address, value)
   end
 
   # Server
@@ -373,4 +615,14 @@ defmodule Nintenlixir.MOS6502 do
 
   defp read_memory(address), do: Memory.read(memory_server_name(), address)
   defp write_memory(address, value), do: Memory.write(memory_server_name(), address, value)
+
+  defp handle_indexed_address(value, index) do
+    result = value + index
+
+    if Memory.same_page?(value, result) do
+      {:ok, result, :same_page}
+    else
+      {:ok, result, :page_cross}
+    end
+  end
 end

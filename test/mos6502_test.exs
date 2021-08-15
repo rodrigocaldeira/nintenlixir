@@ -200,6 +200,11 @@ defmodule Nintenlixir.MOS6502Test do
     assert %{processor_status: 0xA4} = get_registers()
   end
 
+  test "MOS6502.set_ZN_flags/1" do
+    assert {:ok, 0xCA} = MOS6502.set_ZN_flags(0xCA)
+    assert %{processor_status: 0xA4} = get_registers()
+  end
+
   test "MOS6502.set_C_flag_addition/1" do
     assert {:ok, 0xCA} = MOS6502.set_C_flag_addition(0xCA)
     assert %{processor_status: 0x24} = get_registers()
@@ -324,6 +329,307 @@ defmodule Nintenlixir.MOS6502Test do
 
     assert {:ok, 0xCB00, :page_cross} = MOS6502.indirect_address(:y)
     assert %{program_counter: 0xFFFD} = get_registers()
+  end
+
+  test "MOS6502.load/2" do
+    registers = get_registers()
+    write_memory(0xCAFE, 0x0E)
+    assert {:ok, 0x0E} = MOS6502.load(0xCAFE, :accumulator)
+    assert %{accumulator: 0x0E} = get_registers()
+    set_registers(registers)
+    assert {:ok, 0x0E} = MOS6502.load(0xCAFE, :x)
+    assert %{x: 0x0E} = get_registers()
+    set_registers(registers)
+    assert {:ok, 0x0E} = MOS6502.load(0xCAFE, :y)
+    assert %{y: 0x0E} = get_registers()
+  end
+
+  test "MOS6502.lda/1" do
+    write_memory(0xCAFE, 0x0E)
+    assert :ok = MOS6502.lda(0xCAFE)
+    assert %{accumulator: 0x0E} = get_registers()
+  end
+
+  test "MOS6502.lax/1" do
+    write_memory(0xCAFE, 0x0E)
+    assert :ok = MOS6502.lax(0xCAFE)
+    assert %{accumulator: 0x0E, x: 0x0E} = get_registers()
+  end
+
+  test "MOS6502.ldx/1" do
+    write_memory(0xCAFE, 0x0E)
+    assert :ok = MOS6502.ldx(0xCAFE)
+    assert %{x: 0x0E} = get_registers()
+  end
+
+  test "MOS6502.ldy/1" do
+    write_memory(0xCAFE, 0x0E)
+    assert :ok = MOS6502.ldy(0xCAFE)
+    assert %{y: 0x0E} = get_registers()
+  end
+
+  test "MOS6502.sax/1" do
+    registers = get_registers()
+    set_registers(%{registers | accumulator: 3, x: 2})
+    assert :ok = MOS6502.sax(0xCAFE)
+    assert {:ok, 2} = read_memory(0xCAFE)
+  end
+
+  test "MOS6502.sta/1" do
+    registers = get_registers()
+    set_registers(%{registers | accumulator: 3})
+    assert :ok = MOS6502.sta(0xCAFE)
+    assert {:ok, 3} = read_memory(0xCAFE)
+  end
+
+  test "MOS6502.stx/1" do
+    registers = get_registers()
+    set_registers(%{registers | x: 3})
+    assert :ok = MOS6502.stx(0xCAFE)
+    assert {:ok, 3} = read_memory(0xCAFE)
+  end
+
+  test "MOS6502.sty/1" do
+    registers = get_registers()
+    set_registers(%{registers | y: 3})
+    assert :ok = MOS6502.sty(0xCAFE)
+    assert {:ok, 3} = read_memory(0xCAFE)
+  end
+
+  test "MOS6502.transfer/2" do
+    registers = get_registers()
+    set_registers(%{registers | accumulator: 1})
+    assert :ok = MOS6502.transfer(:accumulator, :x)
+    assert %{x: 1, accumulator: 1} = get_registers()
+    set_registers(%{registers | x: 2})
+    assert :ok = MOS6502.transfer(:x, :accumulator)
+    assert %{x: 2, accumulator: 2} = get_registers()
+    set_registers(%{registers | y: 3})
+    assert :ok = MOS6502.transfer(:y, :x)
+    assert %{x: 3, y: 3} = get_registers()
+  end
+
+  test "MOS6502.tax/0" do
+    registers = get_registers()
+    set_registers(%{registers | accumulator: 1})
+    assert :ok = MOS6502.tax()
+    assert %{accumulator: 1, x: 1} = get_registers()
+  end
+
+  test "MOS6502.tay/0" do
+    registers = get_registers()
+    set_registers(%{registers | accumulator: 2})
+    assert :ok = MOS6502.tay()
+    assert %{accumulator: 2, y: 2} = get_registers()
+  end
+
+  test "MOS6502.txa/0" do
+    registers = get_registers()
+    set_registers(%{registers | x: 3})
+    assert :ok = MOS6502.txa()
+    assert %{accumulator: 3, x: 3} = get_registers()
+  end
+
+  test "MOS6502.tya/0" do
+    registers = get_registers()
+    set_registers(%{registers | y: 4})
+    assert :ok = MOS6502.tya()
+    assert %{accumulator: 4, y: 4} = get_registers()
+  end
+
+  test "MOS6502.tsx/0" do
+    registers = get_registers()
+    set_registers(%{registers | stack_pointer: 5})
+    assert :ok = MOS6502.tsx()
+    assert %{stack_pointer: 5, x: 5} = get_registers()
+  end
+
+  test "MOS6502.txs/0" do
+    %{processor_status: p} = registers = get_registers()
+    set_registers(%{registers | x: 6})
+    assert :ok = MOS6502.txs()
+
+    assert %{
+             stack_pointer: 6,
+             x: 6,
+             processor_status: ^p
+           } = get_registers()
+  end
+
+  test "MOS6502.pha/0" do
+    %{stack_pointer: sp} = registers = get_registers()
+    set_registers(%{registers | accumulator: 0x0A})
+    assert :ok = MOS6502.pha()
+    assert {:ok, 0x0A} = read_memory(0x0100 ||| sp)
+  end
+
+  test "MOS6502.php/0" do
+    %{stack_pointer: sp} = get_registers()
+    assert :ok = MOS6502.php()
+    assert {:ok, 0x34} = read_memory(0x0100 ||| sp)
+  end
+
+  test "MOS6502.pla/0" do
+    %{stack_pointer: sp} = registers = get_registers()
+    write_memory(0x0100 ||| sp, 0x0E)
+    set_registers(%{registers | stack_pointer: sp - 1})
+    assert :ok = MOS6502.pla()
+    assert %{accumulator: 0x0E, stack_pointer: ^sp} = get_registers()
+  end
+
+  test "MOS6502.plp/0" do
+    %{stack_pointer: sp} = registers = get_registers()
+    write_memory(0x0100 ||| sp, 0x34)
+    set_registers(%{registers | stack_pointer: sp - 1})
+    assert :ok = MOS6502.plp()
+    assert %{processor_status: 0x04, stack_pointer: ^sp} = get_registers()
+  end
+
+  test "MOS6502.and_op/1" do
+    registers = get_registers()
+    write_memory(0xCAFE, 0x02)
+    set_registers(%{registers | accumulator: 0x03})
+    assert :ok = MOS6502.and_op(0xCAFE)
+    assert %{accumulator: 0x02} = get_registers()
+  end
+
+  test "MOS6502.xor_op/1" do
+    registers = get_registers()
+    write_memory(0xCAFE, 0x03)
+    set_registers(%{registers | accumulator: 0x05})
+    assert :ok = MOS6502.xor_op(0xCAFE)
+    assert %{accumulator: 0x06} = get_registers()
+  end
+
+  test "MOS6502.or_op/1" do
+    registers = get_registers()
+    write_memory(0xCAFE, 0x03)
+    set_registers(%{registers | accumulator: 0x05})
+    assert :ok = MOS6502.or_op(0xCAFE)
+    assert %{accumulator: 0x07} = get_registers()
+  end
+
+  test "MOS6502.bit/1" do
+    write_memory(0xCAFE, 0x03)
+    assert :ok = MOS6502.bit(0xCAFE)
+    assert %{processor_status: 0x24} = get_registers()
+  end
+
+  test "MOS6502.disable_decimal_mode" do
+    assert :ok = MOS6502.disable_decimal_mode()
+    assert %{decimal_mode: false} = MOS6502.get_state()
+  end
+
+  test "MOS6502.addition/1 when the chip is not in decimal mode" do
+    assert :ok = MOS6502.disable_decimal_mode()
+    registers = get_registers()
+    set_registers(%{registers | accumulator: 0x02})
+    assert :ok = MOS6502.addition(0x03)
+    assert %{accumulator: 0x05} = get_registers()
+  end
+
+  test "MOS6502.addition/1 when processor_status is not in decimal mode" do
+    registers = get_registers()
+    set_registers(%{registers | accumulator: 0x02})
+    assert :ok = MOS6502.addition(0x03)
+    assert %{accumulator: 0x05} = get_registers()
+  end
+
+  test "MOS6502.addition/1 when processor_status is in decimal mode" do
+    %{processor_status: p} = registers = get_registers()
+
+    set_registers(%{
+      registers
+      | accumulator: 0x02,
+        processor_status: p ||| ProcessorStatus.DecimalMode.value()
+    })
+
+    assert :ok = MOS6502.addition(0x03)
+    assert %{accumulator: 0x05} = get_registers()
+  end
+
+  test "MOS6502.adc/1" do
+    registers = get_registers()
+    write_memory(0xCAFE, 0x04)
+    set_registers(%{registers | accumulator: 0x02})
+    assert :ok = MOS6502.adc(0xCAFE)
+    assert %{accumulator: 0x06} = get_registers()
+  end
+
+  test "MOS6502.sbc/1 when the chip is not in decimal mode" do
+    assert :ok = MOS6502.disable_decimal_mode()
+    registers = get_registers()
+    write_memory(0xCAFE, 0x02)
+    set_registers(%{registers | accumulator: 0x01})
+    assert :ok = MOS6502.sbc(0xCAFE)
+    assert %{accumulator: 0xFE} = get_registers()
+  end
+
+  test "MOS6502.sbc/1 when processor_status is in decimal mode" do
+    %{processor_status: p} = registers = get_registers()
+
+    set_registers(%{
+      registers
+      | accumulator: 0x01,
+        processor_status: p ||| ProcessorStatus.DecimalMode.value()
+    })
+
+    write_memory(0xCAFE, 0x02)
+    assert :ok = MOS6502.sbc(0xCAFE)
+    assert %{accumulator: 0x98} = get_registers()
+  end
+
+  test "MOS6502.compare/2" do
+    assert :ok = MOS6502.compare(0xCA, 0xFE)
+    assert %{processor_status: 0x25} = get_registers()
+  end
+
+  test "MOS6502.cmp/1" do
+    write_memory(0xCAFE, 0xCA)
+    set_registers(%{get_registers() | accumulator: 0xFE})
+    assert :ok = MOS6502.cmp(0xCAFE)
+    assert %{processor_status: 0x25} = get_registers()
+  end
+
+  test "MOS6502.cpx/1" do
+    write_memory(0xCAFE, 0xCA)
+    set_registers(%{get_registers() | x: 0xFE})
+    assert :ok = MOS6502.cpx(0xCAFE)
+    assert %{processor_status: 0x25} = get_registers()
+  end
+
+  test "MOS6502.cpy/1" do
+    write_memory(0xCAFE, 0xCA)
+    set_registers(%{get_registers() | y: 0xFE})
+    assert :ok = MOS6502.cpy(0xCAFE)
+    assert %{processor_status: 0x25} = get_registers()
+  end
+
+  test "MOS6502.inc/1 for memory" do
+    write_memory(0xCAFE, 0xCA)
+    assert :ok = MOS6502.inc(0xCAFE)
+    assert {:ok, 0xCB} = read_memory(0xCAFE)
+  end
+
+  test "MOS6502.inc/1 for registers" do
+    assert :ok = MOS6502.inc(:x)
+    assert :ok = MOS6502.inc(:y)
+    assert :ok = MOS6502.inc(:accumulator)
+    assert %{accumulator: 1, x: 1, y: 1} = get_registers()
+  end
+
+  test "MOS6502.dec/1 for memory" do
+    write_memory(0xCAFE, 0xCB)
+    assert :ok = MOS6502.dec(0xCAFE)
+    assert {:ok, 0xCA} = read_memory(0xCAFE)
+  end
+
+  test "MOS6502.dec/1 for registers" do
+    set_registers(%{get_registers() | accumulator: 1, x: 1, y: 1})
+    assert :ok = MOS6502.dec(:x)
+    assert :ok = MOS6502.dec(:y)
+    assert :ok = MOS6502.dec(:accumulator)
+    assert %{accumulator: 0, x: 0, y: 0} = get_registers()
   end
 
   # Helpers
