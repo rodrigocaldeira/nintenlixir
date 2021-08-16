@@ -632,6 +632,355 @@ defmodule Nintenlixir.MOS6502Test do
     assert %{accumulator: 0, x: 0, y: 0} = get_registers()
   end
 
+  test "MOS6502.shift/3 shifting left a register" do
+    assert :ok = MOS6502.shift(:left, 0x01, :x)
+    assert %{x: 0x02} = get_registers()
+  end
+
+  test "MOS6502.shift/3 shifting right a register" do
+    assert :ok = MOS6502.shift(:right, 0x02, :x)
+    assert %{x: 0x01} = get_registers()
+  end
+
+  test "MOS6502.shift/3 shifting left a memory address" do
+    assert :ok = MOS6502.shift(:left, 0x01, 0xCAFE)
+    assert {:ok, 0x02} = read_memory(0xCAFE)
+  end
+
+  test "MOS6502.shift/3 shifting right a memory address" do
+    assert :ok = MOS6502.shift(:right, 0x02, 0xCAFE)
+    assert {:ok, 0x01} = read_memory(0xCAFE)
+  end
+
+  test "MOS6502.rotate/3 rotating left a register" do
+    assert :ok = MOS6502.shift(:left, 0x01, :x)
+    assert %{x: 0x02} = get_registers()
+  end
+
+  test "MOS6502.rotate/3 rotate right a register" do
+    assert :ok = MOS6502.rotate(:right, 0x02, :x)
+    assert %{x: 0x01} = get_registers()
+  end
+
+  test "MOS6502.rotate/3 rotating left a memory address" do
+    assert :ok = MOS6502.rotate(:left, 0x01, 0xCAFE)
+    assert {:ok, 0x02} = read_memory(0xCAFE)
+  end
+
+  test "MOS6502.rotate/3 rotate right a memory address" do
+    assert :ok = MOS6502.rotate(:right, 0x02, 0xCAFE)
+    assert {:ok, 0x01} = read_memory(0xCAFE)
+  end
+
+  test "MOS6502.jmp/1" do
+    assert :ok = MOS6502.jmp(0xCAFE)
+    assert %{program_counter: 0xCAFE} = get_registers()
+  end
+
+  test "MOS6502.jsr/1" do
+    %{stack_pointer: sp} = get_registers()
+    assert :ok = MOS6502.jsr(0xCAFE)
+    assert {:ok, 0xFF} = read_memory(0x0100 ||| sp)
+    assert {:ok, 0xFB} = read_memory(0x0100 ||| sp - 1)
+    assert %{program_counter: 0xCAFE} = get_registers()
+  end
+
+  test "MOS6502.rts/0" do
+    assert :ok = MOS6502.jsr(0xCAFE)
+    assert :ok = MOS6502.rts()
+    assert %{program_counter: 0xFFFC} = get_registers()
+  end
+
+  test "MOS6502.branch/2 branching with page cross" do
+    assert {:ok, [:branched, :page_cross]} = MOS6502.branch(0xCAFE, fn -> true end)
+    assert %{program_counter: 0xCAFE} = get_registers()
+  end
+
+  test "MOS6502.branch/2 branching in same page" do
+    assert {:ok, [:branched, :same_page]} = MOS6502.branch(0xFFFE, fn -> true end)
+    assert %{program_counter: 0xFFFE} = get_registers()
+  end
+
+  test "MOS6502.branch/2 not branching" do
+    assert {:ok, []} = MOS6502.branch(0xFFFE, fn -> false end)
+    assert %{program_counter: 0xFFFC} = get_registers()
+  end
+
+  test "MOS6502.bcc/1 branching" do
+    assert {:ok, [:branched, :page_cross]} = MOS6502.bcc(0xCAFE)
+    assert %{program_counter: 0xCAFE} = get_registers()
+  end
+
+  test "MOS6502.bcc/1 not branching" do
+    %{processor_status: p} = get_registers()
+    set_registers(%{get_registers() | processor_status: p ||| ProcessorStatus.CarryFlag.value()})
+    assert {:ok, []} = MOS6502.bcc(0xCAFE)
+    assert %{program_counter: 0xFFFC} = get_registers()
+  end
+
+  test "MOS6502.bcs/1 branching" do
+    %{processor_status: p} = get_registers()
+    set_registers(%{get_registers() | processor_status: p ||| ProcessorStatus.CarryFlag.value()})
+    assert {:ok, [:branched, :page_cross]} = MOS6502.bcs(0xCAFE)
+    assert %{program_counter: 0xCAFE} = get_registers()
+  end
+
+  test "MOS6502.bcs/1 not branching" do
+    assert {:ok, []} = MOS6502.bcs(0xCAFE)
+    assert %{program_counter: 0xFFFC} = get_registers()
+  end
+
+  test "MOS6502.beq/1 branching" do
+    %{processor_status: p} = get_registers()
+    set_registers(%{get_registers() | processor_status: p ||| ProcessorStatus.ZeroFlag.value()})
+    assert {:ok, [:branched, :page_cross]} = MOS6502.beq(0xCAFE)
+    assert %{program_counter: 0xCAFE} = get_registers()
+  end
+
+  test "MOS6502.beq/1 not branching" do
+    assert {:ok, []} = MOS6502.beq(0xCAFE)
+    assert %{program_counter: 0xFFFC} = get_registers()
+  end
+
+  test "MOS6502.bmi/1 branching" do
+    %{processor_status: p} = get_registers()
+
+    set_registers(%{
+      get_registers()
+      | processor_status: p ||| ProcessorStatus.NegativeFlag.value()
+    })
+
+    assert {:ok, [:branched, :page_cross]} = MOS6502.bmi(0xCAFE)
+    assert %{program_counter: 0xCAFE} = get_registers()
+  end
+
+  test "MOS6502.bmi/1 not branching" do
+    assert {:ok, []} = MOS6502.bmi(0xCAFE)
+    assert %{program_counter: 0xFFFC} = get_registers()
+  end
+
+  test "MOS6502.bne/1 branching" do
+    assert {:ok, [:branched, :page_cross]} = MOS6502.bne(0xCAFE)
+    assert %{program_counter: 0xCAFE} = get_registers()
+  end
+
+  test "MOS6502.bne/1 not branching" do
+    %{processor_status: p} = get_registers()
+    set_registers(%{get_registers() | processor_status: p ||| ProcessorStatus.ZeroFlag.value()})
+    assert {:ok, []} = MOS6502.bne(0xCAFE)
+    assert %{program_counter: 0xFFFC} = get_registers()
+  end
+
+  test "MOS6502.bpl/1 branching" do
+    assert {:ok, [:branched, :page_cross]} = MOS6502.bpl(0xCAFE)
+    assert %{program_counter: 0xCAFE} = get_registers()
+  end
+
+  test "MOS6502.bpl/1 not branching" do
+    %{processor_status: p} = get_registers()
+
+    set_registers(%{
+      get_registers()
+      | processor_status: p ||| ProcessorStatus.NegativeFlag.value()
+    })
+
+    assert {:ok, []} = MOS6502.bpl(0xCAFE)
+    assert %{program_counter: 0xFFFC} = get_registers()
+  end
+
+  test "MOS6502.bvc/1 branching" do
+    assert {:ok, [:branched, :page_cross]} = MOS6502.bvc(0xCAFE)
+    assert %{program_counter: 0xCAFE} = get_registers()
+  end
+
+  test "MOS6502.bvc/1 not branching" do
+    %{processor_status: p} = get_registers()
+
+    set_registers(%{
+      get_registers()
+      | processor_status: p ||| ProcessorStatus.OverflowFlag.value()
+    })
+
+    assert {:ok, []} = MOS6502.bvc(0xCAFE)
+    assert %{program_counter: 0xFFFC} = get_registers()
+  end
+
+  test "MOS6502.bvs/1 branching" do
+    %{processor_status: p} = get_registers()
+
+    set_registers(%{
+      get_registers()
+      | processor_status: p ||| ProcessorStatus.OverflowFlag.value()
+    })
+
+    assert {:ok, [:branched, :page_cross]} = MOS6502.bvs(0xCAFE)
+    assert %{program_counter: 0xCAFE} = get_registers()
+  end
+
+  test "MOS6502.bvs/1 not branching" do
+    assert {:ok, []} = MOS6502.bvs(0xCAFE)
+    assert %{program_counter: 0xFFFC} = get_registers()
+  end
+
+  test "MOS6502.clc/0" do
+    %{processor_status: p} = get_registers()
+    set_registers(%{get_registers() | processor_status: p ||| ProcessorStatus.CarryFlag.value()})
+    assert :ok = MOS6502.clc()
+    %{processor_status: p} = get_registers()
+    assert (p &&& ProcessorStatus.CarryFlag.value()) == 0
+  end
+
+  test "MOS6502.cld/0" do
+    %{processor_status: p} = get_registers()
+
+    set_registers(%{get_registers() | processor_status: p ||| ProcessorStatus.DecimalMode.value()})
+
+    assert :ok = MOS6502.cld()
+    %{processor_status: p} = get_registers()
+    assert (p &&& ProcessorStatus.DecimalMode.value()) == 0
+  end
+
+  test "MOS6502.cli/0" do
+    %{processor_status: p} = get_registers()
+
+    set_registers(%{
+      get_registers()
+      | processor_status: p ||| ProcessorStatus.InterruptDisable.value()
+    })
+
+    assert :ok = MOS6502.cli()
+    %{processor_status: p} = get_registers()
+    assert (p &&& ProcessorStatus.InterruptDisable.value()) == 0
+  end
+
+  test "MOS6502.clv/0" do
+    %{processor_status: p} = get_registers()
+
+    set_registers(%{
+      get_registers()
+      | processor_status: p ||| ProcessorStatus.OverflowFlag.value()
+    })
+
+    assert :ok = MOS6502.clv()
+    %{processor_status: p} = get_registers()
+    assert (p &&& ProcessorStatus.OverflowFlag.value()) == 0
+  end
+
+  test "MOS6502.sec/0" do
+    assert :ok = MOS6502.sec()
+    %{processor_status: p} = get_registers()
+    assert (p &&& ProcessorStatus.CarryFlag.value()) != 0
+  end
+
+  test "MOS6502.sed/0" do
+    assert :ok = MOS6502.sed()
+    %{processor_status: p} = get_registers()
+    assert (p &&& ProcessorStatus.DecimalMode.value()) != 0
+  end
+
+  test "MOS6502.sei/0" do
+    assert :ok = MOS6502.sei()
+    %{processor_status: p} = get_registers()
+    assert (p &&& ProcessorStatus.InterruptDisable.value()) != 0
+  end
+
+  test "MOS6502.brk/0" do
+    set_registers(%{get_registers() | program_counter: 0xFF00})
+    %{stack_pointer: sp} = get_registers()
+
+    write_memory(0xFFFF, 0xCA)
+    write_memory(0xFFFE, 0xFE)
+
+    assert :ok = MOS6502.brk()
+
+    assert {:ok, 0xFF} = read_memory(0x0100 ||| sp)
+    assert {:ok, 0x01} = read_memory(0x0100 ||| sp - 1)
+    assert {:ok, 0x34} = read_memory(0x0100 ||| sp - 2)
+
+    assert %{program_counter: 0xCAFE, processor_status: 0x24} = get_registers()
+  end
+
+  test "MOS6502.noop/0" do
+    %{processor_status: p} = get_registers()
+    assert :ok = MOS6502.noop()
+    assert %{processor_status: ^p} = get_registers()
+  end
+
+  test "MOS6502.noop/1" do
+    %{processor_status: p} = get_registers()
+    assert :ok = MOS6502.noop(0xCAFE)
+    assert %{processor_status: ^p} = get_registers()
+  end
+
+  test "MOS6502.anc/1" do
+    assert :ok = MOS6502.anc(0xCAFE)
+    assert %{processor_status: 0x24} = get_registers()
+  end
+
+  test "MOS6502.alr/1" do
+    assert :ok = MOS6502.alr(0xCAFE)
+    assert %{processor_status: 0x26} = get_registers()
+  end
+
+  test "MOS6502.arr/1" do
+    assert :ok = MOS6502.arr(0xCAFE)
+    assert %{processor_status: 0x26} = get_registers()
+  end
+
+  test "MOS6502.axs/1" do
+    write_memory(0xCAFE, 0x01)
+    set_registers(%{get_registers() | accumulator: 0x02, x: 0x03})
+    assert :ok = MOS6502.axs(0xCAFE)
+    assert %{x: 0x01} = get_registers()
+  end
+
+  test "MOS6502.rti/0" do
+    assert :ok = MOS6502.push16(0xCAFE)
+    assert :ok = MOS6502.push(0x26)
+    assert :ok = MOS6502.rti()
+    assert %{program_counter: 0xCAFE, processor_status: 0x06} = get_registers()
+  end
+
+  test "MOS6502.dcp/1" do
+    write_memory(0xCAFE, 0x0E)
+    assert :ok = MOS6502.dcp(0xCAFE)
+    assert {:ok, 0x0D} = read_memory(0xCAFE)
+  end
+
+  test "MOS6502.isb/1" do
+    write_memory(0xCAFE, 0x0E)
+    assert :ok = MOS6502.isb(0xCAFE)
+    assert {:ok, 0x0F} = read_memory(0xCAFE)
+  end
+
+  test "MOS6502.slo/1" do
+    write_memory(0xCAFE, 0x0E)
+    assert :ok = MOS6502.slo(0xCAFE)
+    assert {:ok, 0x1C} = read_memory(0xCAFE)
+    assert %{accumulator: 0x0E} = get_registers()
+  end
+
+  test "MOS6502.rla/1" do
+    write_memory(0xCAFE, 0x0E)
+    assert :ok = MOS6502.rla(0xCAFE)
+    assert {:ok, 0x1C} = read_memory(0xCAFE)
+    assert %{accumulator: 0x00} = get_registers()
+  end
+
+  test "MOS6502.sre/1" do
+    write_memory(0xCAFE, 0x0E)
+    assert :ok = MOS6502.sre(0xCAFE)
+    assert {:ok, 0x07} = read_memory(0xCAFE)
+    %{accumulator: 0x07, processor_status: 0x25} = get_registers()
+  end
+
+  test "MOS6502.rra/1" do
+    write_memory(0xCAFE, 0x0E)
+    assert :ok = MOS6502.rra(0xCAFE)
+    assert {:ok, 0x07} = read_memory(0xCAFE)
+    %{accumulator: 0x08, processor_status: 0x25} = get_registers()
+  end
+
   # Helpers
   def get_registers, do: Registers.get_registers(MOS6502.registers_server_name())
 

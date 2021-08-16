@@ -210,16 +210,11 @@ defmodule Nintenlixir.MOS6502 do
     {:ok, result}
   end
 
-  def zero_page_address(:x) do
+  def zero_page_address(register) when is_atom(register) and register in [:x, :y] do
     {:ok, value} = zero_page_address()
-    %{x: x} = get_registers()
-    {:ok, x + value}
-  end
-
-  def zero_page_address(:y) do
-    {:ok, value} = zero_page_address()
-    %{y: y} = get_registers()
-    {:ok, y + value}
+    registers = get_registers()
+    register_value = Map.get(registers, register)
+    {:ok, register_value + value}
   end
 
   def relative_address do
@@ -247,16 +242,11 @@ defmodule Nintenlixir.MOS6502 do
     {:ok, high <<< 8 ||| low}
   end
 
-  def absolute_address(:x) do
+  def absolute_address(register) when is_atom(register) and register in [:x, :y] do
     {:ok, value} = absolute_address()
-    %{x: x} = get_registers()
-    handle_indexed_address(value, x)
-  end
-
-  def absolute_address(:y) do
-    {:ok, value} = absolute_address()
-    %{y: y} = get_registers()
-    handle_indexed_address(value, y)
+    registers = get_registers()
+    register_value = Map.get(registers, register)
+    handle_indexed_address(value, register_value)
   end
 
   def indirect_address do
@@ -515,32 +505,286 @@ defmodule Nintenlixir.MOS6502 do
     compare(value, y)
   end
 
-  def inc(register) when is_atom(register) do
+  def inc(ref), do: unary_op(ref, &Kernel.+/2)
+
+  def dec(ref), do: unary_op(ref, &Kernel.-/2)
+
+  defp unary_op(register, f) when is_atom(register) do
     registers = get_registers()
-    value = Map.get(registers, register) + 1
+    value = f.(Map.get(registers, register), 1)
     set_ZN_flags(value)
     set_registers(registers |> Map.put(register, value))
   end
 
-  def inc(address) do
+  defp unary_op(address, f) do
     {:ok, value} = read_memory(address)
-    value = value + 1
+    value = f.(value, 1)
     set_ZN_flags(value)
     write_memory(address, value)
   end
 
-  def dec(register) when is_atom(register) do
-    registers = get_registers()
-    value = Map.get(registers, register) - 1
-    set_ZN_flags(value)
-    set_registers(registers |> Map.put(register, value))
+  def shift(:left, value, ref) do
+    value = value <<< 1
+    c = (value &&& ProcessorStatus.NegativeFlag.value()) >>> 7
+    :ok = update_shifted_value(value, c)
+    store(value, ref)
   end
 
-  def dec(address) do
+  def shift(:right, value, ref) do
+    value = value >>> 1
+    c = value &&& ProcessorStatus.CarryFlag.value()
+    :ok = update_shifted_value(value, c)
+    store(value, ref)
+  end
+
+  def rotate(:left, value, ref) do
+    %{processor_status: p} = get_registers()
+
+    value =
+      (value <<< 1 &&& ~~~ProcessorStatus.CarryFlag.value()) |||
+        (p &&& ProcessorStatus.CarryFlag.value())
+
+    c = (value &&& ProcessorStatus.NegativeFlag.value()) >>> 7
+    :ok = update_shifted_value(value, c)
+    store(value, ref)
+  end
+
+  def rotate(:right, value, ref) do
+    %{processor_status: p} = get_registers()
+
+    value =
+      (value >>> 1 &&& ~~~ProcessorStatus.NegativeFlag.value()) |||
+        (p &&& ProcessorStatus.CarryFlag.value()) <<< 7
+
+    c = value &&& ProcessorStatus.CarryFlag.value()
+    :ok = update_shifted_value(value, c)
+    store(value, ref)
+  end
+
+  defp store(value, ref) when is_atom(ref),
+    do: set_registers(get_registers() |> Map.put(ref, value))
+
+  defp store(value, ref), do: write_memory(ref, value)
+
+  defp update_shifted_value(value, carry) do
+    %{processor_status: p} = registers = get_registers()
+    p = p &&& ~~~ProcessorStatus.CarryFlag.value()
+    p = p ||| carry
+    set_registers(%{registers | processor_status: p})
+    {:ok, ^value} = set_ZN_flags(value)
+    :ok
+  end
+
+  def jmp(address), do: set_registers(%{get_registers() | program_counter: address})
+
+  def jsr(address) do
+    %{program_counter: pc} = get_registers()
+    value = pc - 1
+    :ok = push16(value)
+    set_registers(%{get_registers() | program_counter: address})
+  end
+
+  def rts do
+    {:ok, value} = pop16()
+    set_registers(%{get_registers() | program_counter: value + 1})
+  end
+
+  def branch(address, f) do
+    if f.() do
+      %{program_counter: pc} = get_registers()
+      set_registers(%{get_registers() | program_counter: address})
+
+      if !Memory.same_page?(pc, address) do
+        {:ok, [:branched, :page_cross]}
+      else
+        {:ok, [:branched, :same_page]}
+      end
+    else
+      {:ok, []}
+    end
+  end
+
+  def bcc(address) do
+    f = fn ->
+      %{processor_status: p} = get_registers()
+      (p &&& ProcessorStatus.CarryFlag.value()) == 0
+    end
+
+    branch(address, f)
+  end
+
+  def bcs(address) do
+    f = fn ->
+      %{processor_status: p} = get_registers()
+      (p &&& ProcessorStatus.CarryFlag.value()) != 0
+    end
+
+    branch(address, f)
+  end
+
+  def beq(address) do
+    f = fn ->
+      %{processor_status: p} = get_registers()
+      (p &&& ProcessorStatus.ZeroFlag.value()) != 0
+    end
+
+    branch(address, f)
+  end
+
+  def bmi(address) do
+    f = fn ->
+      %{processor_status: p} = get_registers()
+      (p &&& ProcessorStatus.NegativeFlag.value()) != 0
+    end
+
+    branch(address, f)
+  end
+
+  def bne(address) do
+    f = fn ->
+      %{processor_status: p} = get_registers()
+      (p &&& ProcessorStatus.ZeroFlag.value()) == 0
+    end
+
+    branch(address, f)
+  end
+
+  def bpl(address) do
+    f = fn ->
+      %{processor_status: p} = get_registers()
+      (p &&& ProcessorStatus.NegativeFlag.value()) == 0
+    end
+
+    branch(address, f)
+  end
+
+  def bvc(address) do
+    f = fn ->
+      %{processor_status: p} = get_registers()
+      (p &&& ProcessorStatus.OverflowFlag.value()) == 0
+    end
+
+    branch(address, f)
+  end
+
+  def bvs(address) do
+    f = fn ->
+      %{processor_status: p} = get_registers()
+      (p &&& ProcessorStatus.OverflowFlag.value()) != 0
+    end
+
+    branch(address, f)
+  end
+
+  def clc, do: clear_processor_status_flag(ProcessorStatus.CarryFlag.value())
+  def cld, do: clear_processor_status_flag(ProcessorStatus.DecimalMode.value())
+  def cli, do: clear_processor_status_flag(ProcessorStatus.InterruptDisable.value())
+  def clv, do: clear_processor_status_flag(ProcessorStatus.OverflowFlag.value())
+
+  defp clear_processor_status_flag(flag) do
+    %{processor_status: p} = get_registers()
+    p = p &&& ~~~flag
+    set_registers(%{get_registers() | processor_status: p})
+  end
+
+  def sec, do: set_processor_status_flag(ProcessorStatus.CarryFlag.value())
+  def sed, do: set_processor_status_flag(ProcessorStatus.DecimalMode.value())
+  def sei, do: set_processor_status_flag(ProcessorStatus.InterruptDisable.value())
+
+  defp set_processor_status_flag(flag) do
+    %{processor_status: p} = get_registers()
+    p = p ||| flag
+    set_registers(%{get_registers() | processor_status: p})
+  end
+
+  def brk do
+    %{program_counter: pc, processor_status: p} = get_registers()
+    pc = pc + 1
+    push16(pc)
+    push(p ||| ProcessorStatus.BreakCommand.value() ||| ProcessorStatus.Unused.value())
+
+    p = p ||| ProcessorStatus.InterruptDisable.value()
+
+    {:ok, low} = read_memory(0xFFFE)
+    {:ok, high} = read_memory(0xFFFF)
+
+    pc = high <<< 8 ||| low
+    set_registers(%{get_registers() | program_counter: pc, processor_status: p})
+  end
+
+  def noop, do: :ok
+  def noop(_), do: :ok
+
+  def anc(address) do
+    :ok = and_op(address)
+    %{processor_status: p} = get_registers()
+    p = (p &&& ~~~ProcessorStatus.CarryFlag.value()) ||| p >>> 7
+    set_registers(%{get_registers() | processor_status: p})
+  end
+
+  def alr(address) do
+    :ok = and_op(address)
+    %{accumulator: a} = get_registers()
+    shift(:right, a, :accumulator)
+  end
+
+  def arr(address) do
+    :ok = and_op(address)
+    %{accumulator: a} = get_registers()
+    rotate(:right, a, :accumulator)
+  end
+
+  def axs(address) do
     {:ok, value} = read_memory(address)
-    value = value - 1
-    set_ZN_flags(value)
-    write_memory(address, value)
+    %{accumulator: a, x: x} = get_registers()
+    x = x &&& a
+    :ok = compare(value, x)
+    x = x - value
+    set_registers(%{get_registers() | x: x})
+  end
+
+  def rti do
+    {:ok, p} = pop()
+    p = p &&& ~~~(ProcessorStatus.BreakCommand.value() ||| ProcessorStatus.Unused.value())
+    {:ok, pc} = pop16()
+    set_registers(%{get_registers() | program_counter: pc, processor_status: p})
+  end
+
+  def dcp(address) do
+    :ok = dec(address)
+    cmp(address)
+  end
+
+  def isb(address) do
+    :ok = inc(address)
+    sbc(address)
+  end
+
+  def slo(address) do
+    {:ok, value} = read_memory(address)
+    :ok = shift(:left, value, address)
+    %{accumulator: a} = get_registers()
+    a = a ||| value
+    {:ok, ^a} = set_ZN_flags(a)
+    set_registers(%{get_registers() | accumulator: a})
+  end
+
+  def rla(address) do
+    {:ok, value} = read_memory(address)
+    rotate(:left, value, address)
+    and_op(address)
+  end
+
+  def sre(address) do
+    {:ok, value} = read_memory(address)
+    :ok = rotate(:right, value, address)
+    xor_op(address)
+  end
+
+  def rra(address) do
+    {:ok, value} = read_memory(address)
+    :ok = rotate(:right, value, address)
+    adc(address)
   end
 
   # Server
