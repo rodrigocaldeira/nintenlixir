@@ -244,8 +244,7 @@ defmodule Nintenlixir.MOS6502 do
 
   def absolute_address(register) when is_atom(register) and register in [:x, :y] do
     {:ok, value} = absolute_address()
-    registers = get_registers()
-    register_value = Map.get(registers, register)
+    register_value = Map.get(get_registers(), register)
     handle_indexed_address(value, register_value)
   end
 
@@ -785,6 +784,202 @@ defmodule Nintenlixir.MOS6502 do
     {:ok, value} = read_memory(address)
     :ok = rotate(:right, value, address)
     adc(address)
+  end
+
+  def control_address(opcode) do
+    if (opcode &&& 0x10) == 0x00 do
+      case opcode >>> 2 &&& 0x03 do
+        0x00 ->
+          immediate_address()
+
+        0x01 ->
+          zero_page_address()
+
+        0x02 ->
+          {:ok, 0x00, :same_page}
+
+        0x03 ->
+          absolute_address()
+      end
+    else
+      case opcode >>> 2 &&& 0x03 do
+        0x00 ->
+          relative_address()
+
+        0x01 ->
+          zero_page_address(:x)
+
+        0x02 ->
+          {:ok, 0x00, :same_page}
+
+        0x03 ->
+          absolute_address(:x)
+      end
+    end
+    |> case do
+      {:ok, address} ->
+        {:ok, address, :same_page}
+
+      result ->
+        result
+    end
+  end
+
+  def alu_address(opcode) do
+    if (opcode &&& 0x10) == 0x00 do
+      case opcode >>> 2 &&& 0x03 do
+        0x00 ->
+          indirect_address(:x)
+
+        0x01 ->
+          zero_page_address()
+
+        0x02 ->
+          immediate_address()
+
+        0x03 ->
+          absolute_address()
+      end
+    else
+      case opcode >>> 2 &&& 0x03 do
+        0x00 ->
+          indirect_address(:x)
+
+        0x01 ->
+          zero_page_address(:x)
+
+        0x02 ->
+          absolute_address(:y)
+
+        0x03 ->
+          absolute_address(:x)
+      end
+    end
+    |> case do
+      {:ok, address} ->
+        {:ok, address, :same_page}
+
+      result ->
+        result
+    end
+  end
+
+  def rmw_address(opcode) do
+    if (opcode &&& 0x10) == 0x00 do
+      case opcode >>> 2 &&& 0x03 do
+        0x00 ->
+          immediate_address()
+
+        0x01 ->
+          zero_page_address()
+
+        0x02 ->
+          {:ok, 0x00, :same_page}
+
+        0x03 ->
+          absolute_address()
+      end
+    else
+      case opcode >>> 2 &&& 0x03 do
+        0x00 ->
+          {:ok, 0x00, :same_page}
+
+        0x01 ->
+          index =
+            case opcode &&& 0xF0 do
+              result when result in [0x90, 0xB0] ->
+                :y
+
+              _ ->
+                :x
+            end
+
+          zero_page_address(index)
+
+        0x02 ->
+          {:ok, 0x00, :same_page}
+
+        0x03 ->
+          index =
+            case opcode &&& 0xF0 do
+              result when result in [0x90, 0xB0] ->
+                :y
+
+              _ ->
+                :x
+            end
+
+          absolute_address(index)
+      end
+    end
+    |> case do
+      {:ok, address} ->
+        {:ok, address, :same_page}
+
+      result ->
+        result
+    end
+  end
+
+  def unofficial_address(opcode) do
+    if (opcode &&& 0x10) == 0x00 do
+      case opcode >>> 2 &&& 0x03 do
+        0x00 ->
+          indirect_address(:x)
+
+        0x01 ->
+          zero_page_address()
+
+        0x02 ->
+          immediate_address()
+
+        0x03 ->
+          absolute_address()
+      end
+    else
+      case opcode >>> 2 &&& 0x03 do
+        0x00 ->
+          indirect_address(:y)
+
+        0x01 ->
+          index =
+            case opcode &&& 0xF0 do
+              result when result in [0x90, 0xB0] ->
+                :y
+
+              _ ->
+                :x
+            end
+
+          zero_page_address(index)
+
+        0x02 ->
+          absolute_address(:y)
+
+        0x03 ->
+          index =
+            if opcode == 0x9C do
+              :x
+            else
+              case opcode &&& 0xF0 do
+                result when result in [0x90, 0xB0] ->
+                  :y
+
+                _ ->
+                  :x
+              end
+            end
+
+          absolute_address(index)
+      end
+    end
+    |> case do
+      {:ok, address} ->
+        {:ok, address, :same_page}
+
+      result ->
+        result
+    end
   end
 
   # Server

@@ -981,6 +981,84 @@ defmodule Nintenlixir.MOS6502Test do
     %{accumulator: 0x08, processor_status: 0x25} = get_registers()
   end
 
+  test "MOS6502.control_address/1" do
+    registers = get_registers()
+    assert {:ok, 0xFFFC, :same_page} = MOS6502.control_address(0x00)
+    set_registers(registers)
+    assert {:ok, 0x00FF, :same_page} = MOS6502.control_address(0x06)
+    set_registers(registers)
+    assert {:ok, 0x0000, :same_page} = MOS6502.control_address(0x09)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.control_address(0x0C)
+    set_registers(registers)
+    assert {:ok, 0xFFFC, :same_page} = MOS6502.control_address(0x10)
+    set_registers(registers)
+    assert {:ok, 0x00FF, :same_page} = MOS6502.control_address(0x16)
+    set_registers(registers)
+    assert {:ok, 0x0000, :same_page} = MOS6502.control_address(0x19)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.control_address(0x1C)
+  end
+
+  test "MOS6502.alu_address/1" do
+    registers = get_registers()
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.alu_address(0x00)
+    set_registers(registers)
+    assert {:ok, 0x00FF, :same_page} = MOS6502.alu_address(0x06)
+    set_registers(registers)
+    assert {:ok, 0xFFFC, :same_page} = MOS6502.alu_address(0x09)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.alu_address(0x0C)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.alu_address(0x10)
+    set_registers(registers)
+    assert {:ok, 0x00FF, :same_page} = MOS6502.alu_address(0x16)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.alu_address(0x19)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.alu_address(0x1C)
+  end
+
+  test "MOS6502.rmw_address/1" do
+    registers = get_registers()
+    assert {:ok, 0xFFFC, :same_page} = MOS6502.rmw_address(0x00)
+    set_registers(registers)
+    assert {:ok, 0x00FF, :same_page} = MOS6502.rmw_address(0x06)
+    set_registers(registers)
+    assert {:ok, 0x0000, :same_page} = MOS6502.rmw_address(0x09)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.rmw_address(0x0C)
+    set_registers(registers)
+    assert {:ok, 0x0000, :same_page} = MOS6502.rmw_address(0x10)
+    set_registers(registers)
+    assert {:ok, 0x00FF, :same_page} = MOS6502.rmw_address(0x16)
+    set_registers(registers)
+    assert {:ok, 0x0000, :same_page} = MOS6502.rmw_address(0x19)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.rmw_address(0x1C)
+  end
+
+  test "MOS6502.unofficial_address/1" do
+    registers = get_registers()
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.unofficial_address(0x00)
+    set_registers(registers)
+    assert {:ok, 0x00FF, :same_page} = MOS6502.unofficial_address(0x06)
+    set_registers(registers)
+    assert {:ok, 0xFFFC, :same_page} = MOS6502.unofficial_address(0x09)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.unofficial_address(0x0C)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.unofficial_address(0x10)
+    set_registers(registers)
+    assert {:ok, 0x00FF, :same_page} = MOS6502.unofficial_address(0x16)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.unofficial_address(0x19)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.unofficial_address(0x1C)
+    set_registers(registers)
+    assert {:ok, 0xFFFF, :same_page} = MOS6502.unofficial_address(0x9C)
+  end
+
   # Helpers
   def get_registers, do: Registers.get_registers(MOS6502.registers_server_name())
 
