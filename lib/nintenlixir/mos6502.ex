@@ -714,6 +714,46 @@ defmodule Nintenlixir.MOS6502 do
   def noop, do: :ok
   def noop(_), do: :ok
 
+  def asl do
+    %{accumulator: a} = get_registers()
+    shift(:left, a, :accumulator)
+  end
+
+  def asl(address) do
+    {:ok, value} = read_memory(address)
+    shift(:left, value, address)
+  end
+
+  def lsr do
+    %{accumulator: a} = get_registers()
+    shift(:right, a, :accumulator)
+  end
+
+  def lsr(address) do
+    {:ok, value} = read_memory(address)
+    shift(:right, value, address)
+  end
+
+  def rol do
+    %{accumulator: a} = get_registers()
+    rotate(:left, a, :accumulator)
+  end
+
+  def rol(address) do
+    {:ok, value} = read_memory(address)
+    rotate(:left, value, address)
+  end
+
+  def ror do
+    %{accumulator: a} = get_registers()
+    rotate(:right, a, :accumulator)
+  end
+
+  def ror(address) do
+    {:ok, value} = read_memory(address)
+    rotate(:right, value, address)
+  end
+
   def anc(address) do
     :ok = and_op(address)
     %{processor_status: p} = get_registers()
@@ -732,6 +772,9 @@ defmodule Nintenlixir.MOS6502 do
     %{accumulator: a} = get_registers()
     rotate(:right, a, :accumulator)
   end
+
+  def shy(_), do: :ok
+  def shx(_), do: :ok
 
   def axs(address) do
     {:ok, value} = read_memory(address)
