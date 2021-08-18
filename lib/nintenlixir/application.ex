@@ -7,12 +7,17 @@ defmodule Nintenlixir.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      # Starts a worker by calling: Nintenlixir.Worker.start_link(arg)
-      # {Nintenlixir.Worker, arg}
-      # Nintenlixir.Memory,
-      # Nintenlixir.Registers
-    ]
+    children = 
+      case Mix.env() do
+        :test -> []
+        _ ->
+
+          [
+            Nintenlixir.CPU.MOS6502,
+            Nintenlixir.CPU.Memory,
+            {Nintenlixir.CPU.Registers, Nintenlixir.CPU.MOS6502.registers_server_name()}
+          ]
+      end
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options

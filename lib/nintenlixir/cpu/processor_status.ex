@@ -1,6 +1,6 @@
 use EnumType
 
-defenum Nintenlixir.ProcessorStatus do
+defenum Nintenlixir.CPU.ProcessorStatus do
   value(CarryFlag, 1)
   value(ZeroFlag, 2)
   value(InterruptDisable, 4)

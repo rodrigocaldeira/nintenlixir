@@ -1,8 +1,8 @@
-defmodule Nintenlixir.Registers do
+defmodule Nintenlixir.CPU.Registers do
   use GenServer
   use Bitwise
 
-  alias Nintenlixir.ProcessorStatus
+  alias Nintenlixir.CPU.ProcessorStatus
 
   # API
 

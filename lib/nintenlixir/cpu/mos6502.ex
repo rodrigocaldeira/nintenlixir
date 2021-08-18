@@ -1,12 +1,13 @@
-defmodule Nintenlixir.MOS6502 do
+defmodule Nintenlixir.CPU.MOS6502 do
   use GenServer
   use Bitwise
 
   # API
 
-  alias Nintenlixir.Memory
-  alias Nintenlixir.Registers
-  alias Nintenlixir.ProcessorStatus
+  alias Nintenlixir.CPU.Instructions
+  alias Nintenlixir.CPU.Memory
+  alias Nintenlixir.CPU.Registers
+  alias Nintenlixir.CPU.ProcessorStatus
 
   def start_link(_) do
     GenServer.start_link(__MODULE__, new_cpu(), name: __MODULE__)
@@ -15,7 +16,7 @@ defmodule Nintenlixir.MOS6502 do
   def get_state, do: GenServer.call(__MODULE__, :get_state)
 
   def reset do
-    :ok = Memory.reset(memory_server_name())
+    :ok = Memory.reset()
     :ok = Registers.reset(registers_server_name())
     GenServer.call(__MODULE__, :reset)
   end
@@ -1025,6 +1026,45 @@ defmodule Nintenlixir.MOS6502 do
     end
   end
 
+  defp format_hex(number), do: Integer.to_string(number, 16)
+
+  def debug(%{accumulator: a, x: x, y: y, program_counter: pc, stack_pointer: sp, processor_status: p} = term) do
+    if debug_enabled() do
+      IO.inspect("A: #{format_hex(a)}, X: #{format_hex(x)}, Y: #{format_hex(y)}, PC: #{format_hex(pc)}, SP: #{format_hex(sp)}, P: #{format_hex(p)}")
+    end
+    term
+  end
+
+  def debug(term) do 
+    if debug_enabled() do
+      IO.inspect(term)
+    end
+    term
+  end
+
+  defp debug_enabled, do: System.get_env("NINTENLIXIR_DEBUG", "false") |> String.to_atom()
+
+  @spec step() :: {:ok, non_neg_integer()} | {:error, term()}
+  def step do
+    get_state() |> debug()
+
+    {:ok, cycles} = interrupt()
+
+    %{program_counter: pc} = get_registers() |> debug()
+
+    {:ok, opcode} = read_memory(pc) |> debug()
+
+    pc = pc + 1
+
+    set_registers(%{get_registers() | program_counter: pc})
+
+    {:ok, inst_cycles} = Instructions.execute(opcode)
+
+    cycles = cycles + inst_cycles
+
+    {:ok, cycles}
+  end
+
   # Server
 
   @impl GenServer
@@ -1043,9 +1083,7 @@ defmodule Nintenlixir.MOS6502 do
 
     pc = high <<< 8 ||| low
 
-    registers = get_registers()
-
-    :ok = set_registers(%{registers | program_counter: pc})
+    :ok = set_registers(%{get_registers() | program_counter: pc})
 
     {:reply, :ok, state}
   end
@@ -1078,7 +1116,7 @@ defmodule Nintenlixir.MOS6502 do
 
   def handle_call({:set_state, new_state}, _, _), do: {:reply, :ok, new_state}
 
-  # Private helpers
+  # Helpers
 
   defp new_cpu(),
     do: %{
@@ -1089,14 +1127,13 @@ defmodule Nintenlixir.MOS6502 do
       rst: false
     }
 
-  def memory_server_name, do: :memory_cpu
   def registers_server_name, do: :registers_cpu
 
-  defp get_registers, do: Registers.get_registers(registers_server_name())
+  def get_registers, do: Registers.get_registers(registers_server_name())
   defp set_registers(registers), do: Registers.set_registers(registers_server_name(), registers)
 
-  defp read_memory(address), do: Memory.read(memory_server_name(), address)
-  defp write_memory(address, value), do: Memory.write(memory_server_name(), address, value)
+  def read_memory(address), do: Memory.read(address)
+  def write_memory(address, value), do: Memory.write(address, value)
 
   defp handle_indexed_address(value, index) do
     result = value + index

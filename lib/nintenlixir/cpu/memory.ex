@@ -1,4 +1,4 @@
-defmodule Nintenlixir.Memory do
+defmodule Nintenlixir.CPU.Memory do
   use GenServer
   use Bitwise
 
@@ -6,20 +6,20 @@ defmodule Nintenlixir.Memory do
 
   # API
 
-  def start_link(processor) do
-    GenServer.start(__MODULE__, reset_memory(), name: processor)
+  def start_link(_) do
+    GenServer.start(__MODULE__, reset_memory(), name: __MODULE__)
   end
 
-  def reset(processor) do
-    GenServer.call(processor, :reset)
+  def reset() do
+    GenServer.call(__MODULE__, :reset)
   end
 
-  def read(processor, address) do
-    GenServer.call(processor, {:read, address})
+  def read(address) do
+    GenServer.call(__MODULE__, {:read, address})
   end
 
-  def write(processor, address, value) do
-    GenServer.call(processor, {:write, {address, value}})
+  def write(address, value) do
+    GenServer.call(__MODULE__, {:write, {address, value}})
   end
 
   def same_page?(address1, address2) do

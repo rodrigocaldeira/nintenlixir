@@ -1,9 +1,9 @@
-defmodule Nintenlixir.RegistersTest do
+defmodule Nintenlixir.CPU.RegistersTest do
   use ExUnit.Case, async: true
   use Bitwise
 
-  alias Nintenlixir.Registers
-  alias Nintenlixir.ProcessorStatus
+  alias Nintenlixir.CPU.Registers
+  alias Nintenlixir.CPU.ProcessorStatus
 
   @initial_registers_state %{
     accumulator: 0,

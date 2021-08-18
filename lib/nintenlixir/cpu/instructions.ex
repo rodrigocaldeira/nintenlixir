@@ -1,5 +1,5 @@
-defmodule Nintenlixir.Instructions do
-  alias Nintenlixir.MOS6502
+defmodule Nintenlixir.CPU.Instructions do
+  alias Nintenlixir.CPU.MOS6502
   use Bitwise
 
   @cycles [

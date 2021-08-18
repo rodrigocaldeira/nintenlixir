@@ -1,16 +1,14 @@
-defmodule Nintenlixir.InstructionTest do
+defmodule Nintenlixir.CPU.InstructionTest do
   use ExUnit.Case, async: true
-  # use Bitwise
 
-  alias Nintenlixir.MOS6502
-  alias Nintenlixir.Instructions
-  alias Nintenlixir.Memory
-  alias Nintenlixir.Registers
-  # alias Nintenlixir.ProcessorStatus
+  alias Nintenlixir.CPU.MOS6502
+  alias Nintenlixir.CPU.Instructions
+  alias Nintenlixir.CPU.Memory
+  alias Nintenlixir.CPU.Registers
 
   setup do
     start_supervised(MOS6502)
-    start_supervised({Memory, MOS6502.memory_server_name()})
+    start_supervised(Memory)
     start_supervised({Registers, MOS6502.registers_server_name()})
     :ok
   end
