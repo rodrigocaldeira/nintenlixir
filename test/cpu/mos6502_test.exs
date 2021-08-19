@@ -17,7 +17,7 @@ defmodule Nintenlixir.CPU.MOS6502Test do
 
   setup do
     start_supervised(MOS6502)
-    start_supervised(Memory)
+    start_supervised({Memory, MOS6502.memory_server_name()})
     start_supervised({Registers, MOS6502.registers_server_name()})
     :ok
   end
@@ -1065,6 +1065,6 @@ defmodule Nintenlixir.CPU.MOS6502Test do
   def set_registers(registers),
     do: Registers.set_registers(MOS6502.registers_server_name(), registers)
 
-  def read_memory(address), do: Memory.read(address)
-  def write_memory(address, value), do: Memory.write(address, value)
+  def read_memory(address), do: Memory.read(MOS6502.memory_server_name(), address)
+  def write_memory(address, value), do: Memory.write(MOS6502.memory_server_name(), address, value)
 end

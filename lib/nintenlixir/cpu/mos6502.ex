@@ -16,7 +16,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def get_state, do: GenServer.call(__MODULE__, :get_state)
 
   def reset do
-    :ok = Memory.reset()
+    :ok = Memory.reset(memory_server_name())
     :ok = Registers.reset(registers_server_name())
     GenServer.call(__MODULE__, :reset)
   end
@@ -1135,12 +1135,13 @@ defmodule Nintenlixir.CPU.MOS6502 do
     }
 
   def registers_server_name, do: :registers_cpu
+  def memory_server_name, do: :memory_cpu
 
   def get_registers, do: Registers.get_registers(registers_server_name())
   defp set_registers(registers), do: Registers.set_registers(registers_server_name(), registers)
 
-  def read_memory(address), do: Memory.read(address)
-  def write_memory(address, value), do: Memory.write(address, value)
+  def read_memory(address), do: Memory.read(memory_server_name(), address)
+  def write_memory(address, value), do: Memory.write(memory_server_name(), address, value)
 
   defp handle_indexed_address(value, index) do
     result = value + index

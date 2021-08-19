@@ -8,36 +8,36 @@ defmodule Nintenlixir.Memory do
 
   alias Nintenlixir.Memory.Mapper
 
-  def start_link(_) do
-    GenServer.start(__MODULE__, reset_memory(), name: __MODULE__)
+  def start_link(processor) do
+    GenServer.start(__MODULE__, reset_memory(), name: processor)
   end
 
-  def reset() do
-    GenServer.call(__MODULE__, :reset)
+  def reset(processor) do
+    GenServer.call(processor, :reset)
   end
 
-  def read(address) do
-    GenServer.call(__MODULE__, {:read, address})
+  def read(processor, address) do
+    GenServer.call(processor, {:read, address})
   end
 
-  def write(address, value) do
-    GenServer.call(__MODULE__, {:write, {address, value}})
+  def write(processor, address, value) do
+    GenServer.call(processor, {:write, {address, value}})
   end
 
   def same_page?(address1, address2) do
     bxor(address1, address2) >>> 8 == 0
   end
 
-  def set_mirrors(%{} = mirrors) do
-    GenServer.call(__MODULE__, {:set_mirrors, mirrors})
+  def set_mirrors(processor, %{} = mirrors) do
+    GenServer.call(processor, {:set_mirrors, mirrors})
   end
 
-  def set_read_mappers(%{} = mappers) do
-    GenServer.call(__MODULE__, {:set_read_mappers, mappers})
+  def set_read_mappers(processor, %{} = mappers) do
+    GenServer.call(processor, {:set_read_mappers, mappers})
   end
 
-  def set_write_mappers(%{} = mappers) do
-    GenServer.call(__MODULE__, {:set_write_mappers, mappers})
+  def set_write_mappers(processor, %{} = mappers) do
+    GenServer.call(processor, {:set_write_mappers, mappers})
   end
 
   # Server

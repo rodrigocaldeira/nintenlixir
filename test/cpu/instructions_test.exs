@@ -8,7 +8,7 @@ defmodule Nintenlixir.CPU.InstructionTest do
 
   setup do
     start_supervised(MOS6502)
-    start_supervised(Memory)
+    start_supervised({Memory, MOS6502.memory_server_name()})
     start_supervised({Registers, MOS6502.registers_server_name()})
     :ok
   end
