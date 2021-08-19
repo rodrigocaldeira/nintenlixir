@@ -3,7 +3,7 @@ defmodule Nintenlixir.CPU.InstructionTest do
 
   alias Nintenlixir.CPU.MOS6502
   alias Nintenlixir.CPU.Instructions
-  alias Nintenlixir.CPU.Memory
+  alias Nintenlixir.Memory
   alias Nintenlixir.CPU.Registers
 
   setup do

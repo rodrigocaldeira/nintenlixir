@@ -1,7 +1,8 @@
-defmodule Nintenlixir.CPU.MemoryTest do
+defmodule Nintenlixir.MemoryTest do
   use ExUnit.Case
 
-  alias Nintenlixir.CPU.Memory
+  alias Nintenlixir.Memory
+  alias Nintenlixir.Memory.DummyMapper
 
   setup do
     start_supervised(Memory)
@@ -52,5 +53,54 @@ defmodule Nintenlixir.CPU.MemoryTest do
     refute Memory.same_page?(0x0001, 0x0100)
     refute Memory.same_page?(0x0100, 0x02FA)
     refute Memory.same_page?(0x02CA, 0x03FE)
+  end
+
+  test "Memory.set_mirrors/1" do
+    assert {:ok, 0xFF} = Memory.read(0xEFAC)
+    assert :ok = Memory.write(0xCAFE, 0x0E)
+    assert {:ok, 0x0E} = Memory.read(0xCAFE)
+
+    mirrors = %{
+      0xCAFE => 0xEFAC
+    }
+
+    assert :ok = Memory.set_mirrors(mirrors)
+
+    assert :ok = Memory.write(0xCAFE, 0xFA)
+    assert {:ok, 0xFA} = Memory.read(0xEFAC)
+
+    assert :ok = Memory.write(0xEFAC, 0xAE)
+    assert {:ok, 0xAE} = Memory.read(0xCAFE)
+  end
+
+  test "Dummy mapper" do
+    dummy_mapper = %DummyMapper{}
+
+    read_mappers = %{
+      0xCAFE => dummy_mapper
+    }
+
+    write_mappers = %{
+      0xCAFE => dummy_mapper
+    }
+
+    assert :ok = Memory.set_read_mappers(read_mappers)
+    assert :ok = Memory.set_write_mappers(write_mappers)
+
+    assert {:ok, "DUMMY MAPPER"} = Memory.read(0xCAFE)
+    assert :ok = Memory.write(0xCAFE, 0x1234)
+    assert {:ok, 0xCAFE} = Memory.read(0x1234)
+
+    mappers = Enum.map(0x0200..0x3FFF, fn address -> {address, dummy_mapper} end)
+
+    read_mappers = Map.new(mappers)
+    write_mappers = Map.new(mappers)
+
+    assert :ok = Memory.set_read_mappers(read_mappers)
+    assert :ok = Memory.set_write_mappers(write_mappers)
+
+    for address <- 0x0200..0x3FFF do
+      assert {:ok, "DUMMY MAPPER"} = Memory.read(address)
+    end
   end
 end

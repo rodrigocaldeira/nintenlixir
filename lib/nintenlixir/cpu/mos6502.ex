@@ -5,7 +5,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   # API
 
   alias Nintenlixir.CPU.Instructions
-  alias Nintenlixir.CPU.Memory
+  alias Nintenlixir.Memory
   alias Nintenlixir.CPU.Registers
   alias Nintenlixir.CPU.ProcessorStatus
 
@@ -1028,17 +1028,24 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   defp format_hex(number), do: Integer.to_string(number, 16)
 
-  def debug(%{accumulator: a, x: x, y: y, program_counter: pc, stack_pointer: sp, processor_status: p} = term) do
+  def debug(
+        %{accumulator: a, x: x, y: y, program_counter: pc, stack_pointer: sp, processor_status: p} =
+          term
+      ) do
     if debug_enabled() do
-      IO.inspect("A: #{format_hex(a)}, X: #{format_hex(x)}, Y: #{format_hex(y)}, PC: #{format_hex(pc)}, SP: #{format_hex(sp)}, P: #{format_hex(p)}")
+      IO.inspect(
+        "A: #{format_hex(a)}, X: #{format_hex(x)}, Y: #{format_hex(y)}, PC: #{format_hex(pc)}, SP: #{format_hex(sp)}, P: #{format_hex(p)}"
+      )
     end
+
     term
   end
 
-  def debug(term) do 
+  def debug(term) do
     if debug_enabled() do
       IO.inspect(term)
     end
+
     term
   end
 

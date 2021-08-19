@@ -3,7 +3,7 @@ defmodule Nintenlixir.CPU.MOS6502Test do
   use Bitwise
 
   alias Nintenlixir.CPU.MOS6502
-  alias Nintenlixir.CPU.Memory
+  alias Nintenlixir.Memory
   alias Nintenlixir.CPU.Registers
   alias Nintenlixir.CPU.ProcessorStatus
 
