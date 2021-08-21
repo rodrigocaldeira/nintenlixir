@@ -6,7 +6,6 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   alias Nintenlixir.CPU.Instructions
   alias Nintenlixir.Memory
-  alias Nintenlixir.CPU.Registers
 
   @carry_flag 1
   @zero_flag 2
@@ -25,9 +24,12 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def reset do
     :ok = Memory.reset(memory_server_name())
-    :ok = Registers.reset(registers_server_name())
     GenServer.call(__MODULE__, :reset)
   end
+
+  def get_registers, do: GenServer.call(__MODULE__, :get_registers)
+
+  def set_registers(registers), do: GenServer.call(__MODULE__, {:set_registers, registers})
 
   def push(value), do: GenServer.call(__MODULE__, {:push, value})
 
@@ -49,7 +51,11 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def rst, do: GenServer.call(__MODULE__, {:receive_interrupt, :rst})
 
   def interrupt do
-    %{irq: irq, nmi: nmi, rst: rst} = state = GenServer.call(__MODULE__, :get_state)
+    %{
+      irq: irq,
+      nmi: nmi,
+      rst: rst
+    } = GenServer.call(__MODULE__, :get_state)
 
     cycles =
       case [irq, nmi, rst] do
@@ -60,10 +66,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{processor_status: p} = get_registers()
 
     if irq && (p &&& @interrupt_disable) == 0 do
-      %{
-        program_counter: pc,
-        processor_status: p
-      } = get_registers()
+      %{program_counter: pc} = get_registers()
 
       :ok = push16(pc)
 
@@ -80,16 +83,12 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
       pc = high <<< 8 ||| low
 
-      registers = get_registers()
-
       :ok =
         set_registers(%{
-          registers
+          get_registers()
           | program_counter: pc,
             processor_status: p
         })
-
-      :ok = GenServer.call(__MODULE__, {:set_state, %{state | irq: false}})
     end
 
     if nmi do
@@ -113,22 +112,31 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
       pc = high <<< 8 ||| low
 
-      registers = get_registers()
-
       :ok =
         set_registers(%{
-          registers
+          get_registers()
           | program_counter: pc,
             processor_status: p
         })
-
-      :ok = GenServer.call(__MODULE__, {:set_state, %{state | nmi: false}})
     end
 
     if rst do
       :ok = GenServer.call(__MODULE__, :reset)
-      :ok = GenServer.call(__MODULE__, {:set_state, %{state | rst: false}})
     end
+
+    state = GenServer.call(__MODULE__, :get_state)
+
+    :ok =
+      GenServer.call(
+        __MODULE__,
+        {:set_state,
+         %{
+           state
+           | irq: false,
+             nmi: false,
+             rst: false
+         }}
+      )
 
     {:ok, cycles}
   end
@@ -1098,31 +1106,33 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
     pc = high <<< 8 ||| low
 
-    :ok = set_registers(%{get_registers() | program_counter: pc})
-
-    {:reply, :ok, state}
+    {:reply, :ok, %{state | registers: %{new_registers() | program_counter: pc}}}
   end
 
-  def handle_call({:push, value}, _, state) do
-    %{stack_pointer: sp} = registers = get_registers()
+  def handle_call(:get_registers, _, %{registers: registers} = state) do
+    {:reply, registers, state}
+  end
+
+  def handle_call({:set_registers, registers}, _, state) do
+    {:reply, :ok, %{state | registers: registers}}
+  end
+
+  def handle_call({:push, value}, _, %{registers: registers} = state) do
+    %{stack_pointer: sp} = registers
 
     :ok = write_memory(0x0100 ||| sp, value)
 
-    :ok = set_registers(%{registers | stack_pointer: sp - 1})
-
-    {:reply, :ok, state}
+    {:reply, :ok, %{state | registers: %{registers | stack_pointer: sp - 1}}}
   end
 
-  def handle_call(:pop, _, state) do
-    %{stack_pointer: sp} = registers = get_registers()
+  def handle_call(:pop, _, %{registers: registers} = state) do
+    %{stack_pointer: sp} = registers
 
     sp = sp + 1
 
     {:ok, value} = read_memory(0x0100 ||| sp)
 
-    :ok = set_registers(%{registers | stack_pointer: sp})
-
-    {:reply, {:ok, value}, state}
+    {:reply, {:ok, value}, %{state | registers: %{registers | stack_pointer: sp}}}
   end
 
   def handle_call({:receive_interrupt, :irq}, _, state), do: {:reply, :ok, %{state | irq: true}}
@@ -1133,20 +1143,29 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   # Helpers
 
-  defp new_cpu(),
-    do: %{
+  defp new_cpu() do
+    %{
       decimal_mode: true,
       break_error: false,
       nmi: false,
       irq: false,
-      rst: false
+      rst: false,
+      registers: new_registers()
     }
+  end
 
-  def registers_server_name, do: :registers_cpu
+  defp new_registers() do
+    %{
+      accumulator: 0,
+      x: 0,
+      y: 0,
+      processor_status: 36,
+      stack_pointer: 0xFD,
+      program_counter: 0xFFFC
+    }
+  end
+
   def memory_server_name, do: :memory_cpu
-
-  def get_registers, do: Registers.get_registers(registers_server_name())
-  defp set_registers(registers), do: Registers.set_registers(registers_server_name(), registers)
 
   def read_memory(address), do: Memory.read(memory_server_name(), address)
   def write_memory(address, value), do: Memory.write(memory_server_name(), address, value)

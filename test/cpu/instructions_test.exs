@@ -4,12 +4,10 @@ defmodule Nintenlixir.CPU.InstructionTest do
   alias Nintenlixir.CPU.MOS6502
   alias Nintenlixir.CPU.Instructions
   alias Nintenlixir.Memory
-  alias Nintenlixir.CPU.Registers
 
   setup do
     start_supervised(MOS6502)
     start_supervised({Memory, MOS6502.memory_server_name()})
-    start_supervised({Registers, MOS6502.registers_server_name()})
     :ok
   end
 
@@ -376,8 +374,8 @@ defmodule Nintenlixir.CPU.InstructionTest do
   end
 
   # Helpers
-  def get_registers, do: Registers.get_registers(MOS6502.registers_server_name())
+  def get_registers, do: MOS6502.get_registers()
 
   def set_registers(registers),
-    do: Registers.set_registers(MOS6502.registers_server_name(), registers)
+    do: MOS6502.set_registers(registers)
 end

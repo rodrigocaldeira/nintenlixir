@@ -15,8 +15,7 @@ defmodule Nintenlixir.Application do
         _ ->
           [
             Nintenlixir.CPU.MOS6502,
-            {Nintenlixir.Memory, Nintenlixir.CPU.MOS6502.memory_server_name()},
-            {Nintenlixir.CPU.Registers, Nintenlixir.CPU.MOS6502.registers_server_name()}
+            {Nintenlixir.Memory, Nintenlixir.CPU.MOS6502.memory_server_name()}
           ]
       end
 
