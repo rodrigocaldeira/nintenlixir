@@ -2,8 +2,6 @@ defmodule Nintenlixir.CPU.Registers do
   use GenServer
   use Bitwise
 
-  alias Nintenlixir.CPU.ProcessorStatus
-
   # API
 
   def start_link(processor) do
@@ -49,8 +47,7 @@ defmodule Nintenlixir.CPU.Registers do
       accumulator: 0,
       x: 0,
       y: 0,
-      processor_status:
-        ProcessorStatus.InterruptDisable.value() ||| ProcessorStatus.Unused.value(),
+      processor_status: 36,
       stack_pointer: 0xFD,
       program_counter: 0xFFFC
     }

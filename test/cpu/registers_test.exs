@@ -3,13 +3,12 @@ defmodule Nintenlixir.CPU.RegistersTest do
   use Bitwise
 
   alias Nintenlixir.CPU.Registers
-  alias Nintenlixir.CPU.ProcessorStatus
 
   @initial_registers_state %{
     accumulator: 0,
     x: 0,
     y: 0,
-    processor_status: ProcessorStatus.InterruptDisable.value() ||| ProcessorStatus.Unused.value(),
+    processor_status: 36,
     stack_pointer: 0xFD,
     program_counter: 0xFFFC
   }

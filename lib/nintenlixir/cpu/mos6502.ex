@@ -7,7 +7,15 @@ defmodule Nintenlixir.CPU.MOS6502 do
   alias Nintenlixir.CPU.Instructions
   alias Nintenlixir.Memory
   alias Nintenlixir.CPU.Registers
-  alias Nintenlixir.CPU.ProcessorStatus
+
+  @carry_flag 1
+  @zero_flag 2
+  @interrupt_disable 4
+  @decimal_mode 8
+  @break_command 16
+  @unused 32
+  @overflow_flag 64
+  @negative_flag 128
 
   def start_link(_) do
     GenServer.start_link(__MODULE__, new_cpu(), name: __MODULE__)
@@ -51,7 +59,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
     %{processor_status: p} = get_registers()
 
-    if irq && (p &&& ProcessorStatus.InterruptDisable.value()) == 0 do
+    if irq && (p &&& @interrupt_disable) == 0 do
       %{
         program_counter: pc,
         processor_status: p
@@ -61,11 +69,11 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
       :ok =
         push(
-          (p ||| ProcessorStatus.Unused.value()) &&&
-            ~~~ProcessorStatus.BreakCommand.value()
+          (p ||| @unused) &&&
+            ~~~@break_command
         )
 
-      p = p ||| ProcessorStatus.InterruptDisable.value()
+      p = p ||| @interrupt_disable
 
       {:ok, low} = read_memory(0xFFFE)
       {:ok, high} = read_memory(0xFFFF)
@@ -94,11 +102,11 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
       :ok =
         push(
-          (p ||| ProcessorStatus.Unused.value()) &&&
-            ~~~ProcessorStatus.BreakCommand.value()
+          (p ||| @unused) &&&
+            ~~~@break_command
         )
 
-      p = p ||| ProcessorStatus.InterruptDisable.value()
+      p = p ||| @interrupt_disable
 
       {:ok, low} = read_memory(0xFFFA)
       {:ok, high} = read_memory(0xFFFB)
@@ -131,7 +139,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     :ok =
       set_registers(%{
         registers
-        | processor_status: p ||| ProcessorStatus.ZeroFlag.value()
+        | processor_status: p ||| @zero_flag
       })
 
     {:ok, 0x00}
@@ -143,7 +151,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     :ok =
       set_registers(%{
         registers
-        | processor_status: p &&& ~~~ProcessorStatus.ZeroFlag.value()
+        | processor_status: p &&& ~~~@zero_flag
       })
 
     {:ok, value}
@@ -156,8 +164,8 @@ defmodule Nintenlixir.CPU.MOS6502 do
       set_registers(%{
         registers
         | processor_status:
-            (p &&& ~~~ProcessorStatus.NegativeFlag.value()) |||
-              (value &&& ProcessorStatus.NegativeFlag.value())
+            (p &&& ~~~@negative_flag) |||
+              (value &&& @negative_flag)
       })
 
     {:ok, value}
@@ -176,8 +184,8 @@ defmodule Nintenlixir.CPU.MOS6502 do
       set_registers(%{
         registers
         | processor_status:
-            (p &&& ~~~ProcessorStatus.CarryFlag.value()) |||
-              (value >>> 8 &&& ProcessorStatus.CarryFlag.value())
+            (p &&& ~~~@carry_flag) |||
+              (value >>> 8 &&& @carry_flag)
       })
 
     {:ok, value}
@@ -190,9 +198,9 @@ defmodule Nintenlixir.CPU.MOS6502 do
       set_registers(%{
         registers
         | processor_status:
-            (p &&& ~~~ProcessorStatus.OverflowFlag.value()) |||
+            (p &&& ~~~@overflow_flag) |||
               (~~~(bxor(term1, term2) &&& bxor(term1, result)) &&&
-                 ProcessorStatus.NegativeFlag.value()) >>> 1
+                 @negative_flag) >>> 1
       })
 
     {:ok, result}
@@ -366,7 +374,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def php do
     %{processor_status: p} = get_registers()
-    push(p ||| ProcessorStatus.BreakCommand.value() ||| ProcessorStatus.Unused.value())
+    push(p ||| @break_command ||| @unused)
   end
 
   def pla do
@@ -377,7 +385,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def plp do
     {:ok, value} = pop()
-    p = value &&& ~~~(ProcessorStatus.BreakCommand.value() ||| ProcessorStatus.Unused.value())
+    p = value &&& ~~~(@break_command ||| @unused)
     set_registers(%{get_registers() | processor_status: p})
   end
 
@@ -408,8 +416,8 @@ defmodule Nintenlixir.CPU.MOS6502 do
     {:ok, _} = set_Z_flag(value &&& a)
 
     p =
-      (p &&& ~~~(ProcessorStatus.NegativeFlag.value() ||| ProcessorStatus.OverflowFlag.value())) |||
-        (value &&& (ProcessorStatus.NegativeFlag.value() ||| ProcessorStatus.OverflowFlag.value()))
+      (p &&& ~~~(@negative_flag ||| @overflow_flag)) |||
+        (value &&& (@negative_flag ||| @overflow_flag))
 
     set_registers(%{registers | processor_status: p})
   end
@@ -422,13 +430,13 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{accumulator: a, processor_status: p} = registers = get_registers()
     %{decimal_mode: decimal_mode} = get_state()
 
-    if !decimal_mode || (p &&& ProcessorStatus.DecimalMode.value()) == 0 do
-      {:ok, result} = set_C_flag_addition(a + value + (p &&& ProcessorStatus.CarryFlag.value()))
+    if !decimal_mode || (p &&& @decimal_mode) == 0 do
+      {:ok, result} = set_C_flag_addition(a + value + (p &&& @carry_flag))
       {:ok, ^result} = set_V_flag_addition(a, value, result)
       {:ok, ^result} = set_ZN_flags(result)
       set_registers(%{registers | accumulator: result})
     else
-      low = (a &&& 0x000F) + (value &&& 0x000F) + (p &&& ProcessorStatus.CarryFlag.value())
+      low = (a &&& 0x000F) + (value &&& 0x000F) + (p &&& @carry_flag)
       high = (a &&& 0x00F0) + (value &&& 0x00F0)
 
       low =
@@ -471,7 +479,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{decimal_mode: decimal_mode} = get_state()
 
     value =
-      if !decimal_mode || (p &&& ProcessorStatus.DecimalMode.value()) == 0 do
+      if !decimal_mode || (p &&& @decimal_mode) == 0 do
         bxor(value, 0xFF)
       else
         0x99 - value
@@ -525,14 +533,14 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def shift(:left, value, ref) do
     value = value <<< 1
-    c = (value &&& ProcessorStatus.NegativeFlag.value()) >>> 7
+    c = (value &&& @negative_flag) >>> 7
     :ok = update_shifted_value(value, c)
     store(value, ref)
   end
 
   def shift(:right, value, ref) do
     value = value >>> 1
-    c = value &&& ProcessorStatus.CarryFlag.value()
+    c = value &&& @carry_flag
     :ok = update_shifted_value(value, c)
     store(value, ref)
   end
@@ -541,10 +549,10 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{processor_status: p} = get_registers()
 
     value =
-      (value <<< 1 &&& ~~~ProcessorStatus.CarryFlag.value()) |||
-        (p &&& ProcessorStatus.CarryFlag.value())
+      (value <<< 1 &&& ~~~@carry_flag) |||
+        (p &&& @carry_flag)
 
-    c = (value &&& ProcessorStatus.NegativeFlag.value()) >>> 7
+    c = (value &&& @negative_flag) >>> 7
     :ok = update_shifted_value(value, c)
     store(value, ref)
   end
@@ -553,10 +561,10 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{processor_status: p} = get_registers()
 
     value =
-      (value >>> 1 &&& ~~~ProcessorStatus.NegativeFlag.value()) |||
-        (p &&& ProcessorStatus.CarryFlag.value()) <<< 7
+      (value >>> 1 &&& ~~~@negative_flag) |||
+        (p &&& @carry_flag) <<< 7
 
-    c = value &&& ProcessorStatus.CarryFlag.value()
+    c = value &&& @carry_flag
     :ok = update_shifted_value(value, c)
     store(value, ref)
   end
@@ -568,7 +576,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   defp update_shifted_value(value, carry) do
     %{processor_status: p} = registers = get_registers()
-    p = p &&& ~~~ProcessorStatus.CarryFlag.value()
+    p = p &&& ~~~@carry_flag
     p = p ||| carry
     set_registers(%{registers | processor_status: p})
     {:ok, ^value} = set_ZN_flags(value)
@@ -607,7 +615,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def bcc(address) do
     f = fn ->
       %{processor_status: p} = get_registers()
-      (p &&& ProcessorStatus.CarryFlag.value()) == 0
+      (p &&& @carry_flag) == 0
     end
 
     branch(address, f)
@@ -616,7 +624,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def bcs(address) do
     f = fn ->
       %{processor_status: p} = get_registers()
-      (p &&& ProcessorStatus.CarryFlag.value()) != 0
+      (p &&& @carry_flag) != 0
     end
 
     branch(address, f)
@@ -625,7 +633,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def beq(address) do
     f = fn ->
       %{processor_status: p} = get_registers()
-      (p &&& ProcessorStatus.ZeroFlag.value()) != 0
+      (p &&& @zero_flag) != 0
     end
 
     branch(address, f)
@@ -634,7 +642,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def bmi(address) do
     f = fn ->
       %{processor_status: p} = get_registers()
-      (p &&& ProcessorStatus.NegativeFlag.value()) != 0
+      (p &&& @negative_flag) != 0
     end
 
     branch(address, f)
@@ -643,7 +651,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def bne(address) do
     f = fn ->
       %{processor_status: p} = get_registers()
-      (p &&& ProcessorStatus.ZeroFlag.value()) == 0
+      (p &&& @zero_flag) == 0
     end
 
     branch(address, f)
@@ -652,7 +660,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def bpl(address) do
     f = fn ->
       %{processor_status: p} = get_registers()
-      (p &&& ProcessorStatus.NegativeFlag.value()) == 0
+      (p &&& @negative_flag) == 0
     end
 
     branch(address, f)
@@ -661,7 +669,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def bvc(address) do
     f = fn ->
       %{processor_status: p} = get_registers()
-      (p &&& ProcessorStatus.OverflowFlag.value()) == 0
+      (p &&& @overflow_flag) == 0
     end
 
     branch(address, f)
@@ -670,16 +678,16 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def bvs(address) do
     f = fn ->
       %{processor_status: p} = get_registers()
-      (p &&& ProcessorStatus.OverflowFlag.value()) != 0
+      (p &&& @overflow_flag) != 0
     end
 
     branch(address, f)
   end
 
-  def clc, do: clear_processor_status_flag(ProcessorStatus.CarryFlag.value())
-  def cld, do: clear_processor_status_flag(ProcessorStatus.DecimalMode.value())
-  def cli, do: clear_processor_status_flag(ProcessorStatus.InterruptDisable.value())
-  def clv, do: clear_processor_status_flag(ProcessorStatus.OverflowFlag.value())
+  def clc, do: clear_processor_status_flag(@carry_flag)
+  def cld, do: clear_processor_status_flag(@decimal_mode)
+  def cli, do: clear_processor_status_flag(@interrupt_disable)
+  def clv, do: clear_processor_status_flag(@overflow_flag)
 
   defp clear_processor_status_flag(flag) do
     %{processor_status: p} = get_registers()
@@ -687,9 +695,9 @@ defmodule Nintenlixir.CPU.MOS6502 do
     set_registers(%{get_registers() | processor_status: p})
   end
 
-  def sec, do: set_processor_status_flag(ProcessorStatus.CarryFlag.value())
-  def sed, do: set_processor_status_flag(ProcessorStatus.DecimalMode.value())
-  def sei, do: set_processor_status_flag(ProcessorStatus.InterruptDisable.value())
+  def sec, do: set_processor_status_flag(@carry_flag)
+  def sed, do: set_processor_status_flag(@decimal_mode)
+  def sei, do: set_processor_status_flag(@interrupt_disable)
 
   defp set_processor_status_flag(flag) do
     %{processor_status: p} = get_registers()
@@ -701,9 +709,9 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{program_counter: pc, processor_status: p} = get_registers()
     pc = pc + 1
     push16(pc)
-    push(p ||| ProcessorStatus.BreakCommand.value() ||| ProcessorStatus.Unused.value())
+    push(p ||| @break_command ||| @unused)
 
-    p = p ||| ProcessorStatus.InterruptDisable.value()
+    p = p ||| @interrupt_disable
 
     {:ok, low} = read_memory(0xFFFE)
     {:ok, high} = read_memory(0xFFFF)
@@ -758,7 +766,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def anc(address) do
     :ok = and_op(address)
     %{processor_status: p} = get_registers()
-    p = (p &&& ~~~ProcessorStatus.CarryFlag.value()) ||| p >>> 7
+    p = (p &&& ~~~@carry_flag) ||| p >>> 7
     set_registers(%{get_registers() | processor_status: p})
   end
 
@@ -788,7 +796,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def rti do
     {:ok, p} = pop()
-    p = p &&& ~~~(ProcessorStatus.BreakCommand.value() ||| ProcessorStatus.Unused.value())
+    p = p &&& ~~~(@break_command ||| @unused)
     {:ok, pc} = pop16()
     set_registers(%{get_registers() | program_counter: pc, processor_status: p})
   end

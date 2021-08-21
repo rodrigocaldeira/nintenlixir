@@ -5,7 +5,15 @@ defmodule Nintenlixir.CPU.MOS6502Test do
   alias Nintenlixir.CPU.MOS6502
   alias Nintenlixir.Memory
   alias Nintenlixir.CPU.Registers
-  alias Nintenlixir.CPU.ProcessorStatus
+
+  @carry_flag 1
+  @zero_flag 2
+  @interrupt_disable 4
+  @decimal_mode 8
+  @break_command 16
+  @unused 32
+  @overflow_flag 64
+  @negative_flag 128
 
   @initial_state %{
     decimal_mode: true,
@@ -107,7 +115,7 @@ defmodule Nintenlixir.CPU.MOS6502Test do
     assert :ok =
              set_registers(%{
                registers
-               | processor_status: p &&& ~~~ProcessorStatus.InterruptDisable.value()
+               | processor_status: p &&& ~~~@interrupt_disable
              })
 
     %{
@@ -134,12 +142,12 @@ defmodule Nintenlixir.CPU.MOS6502Test do
     {:ok, previous_pc_low} = read_memory(0x0100 ||| sp - 1)
     {:ok, previous_pc_high} = read_memory(0x0100 ||| sp)
 
-    assert ((previous_p ||| ProcessorStatus.Unused.value()) &&&
-              ~~~ProcessorStatus.BreakCommand.value()) == p
+    assert ((previous_p ||| @unused) &&&
+              ~~~@break_command) == p
 
     assert (previous_pc_high <<< 8 ||| previous_pc_low) == pc
     assert (new_pc_high <<< 8 ||| new_pc_low) == new_pc
-    assert (p ||| ProcessorStatus.InterruptDisable.value()) == new_p
+    assert (p ||| @interrupt_disable) == new_p
     assert sp - 3 == new_sp
   end
 
@@ -168,12 +176,12 @@ defmodule Nintenlixir.CPU.MOS6502Test do
     {:ok, previous_pc_low} = read_memory(0x0100 ||| sp - 1)
     {:ok, previous_pc_high} = read_memory(0x0100 ||| sp)
 
-    assert ((previous_p ||| ProcessorStatus.Unused.value()) &&&
-              ~~~ProcessorStatus.BreakCommand.value()) == p
+    assert ((previous_p ||| @unused) &&&
+              ~~~@break_command) == p
 
     assert (previous_pc_high <<< 8 ||| previous_pc_low) == pc
     assert (new_pc_high <<< 8 ||| new_pc_low) == new_pc
-    assert (p ||| ProcessorStatus.InterruptDisable.value()) == new_p
+    assert (p ||| @interrupt_disable) == new_p
     assert sp - 3 == new_sp
   end
 
@@ -541,7 +549,7 @@ defmodule Nintenlixir.CPU.MOS6502Test do
     set_registers(%{
       registers
       | accumulator: 0x02,
-        processor_status: p ||| ProcessorStatus.DecimalMode.value()
+        processor_status: p ||| @decimal_mode
     })
 
     assert :ok = MOS6502.addition(0x03)
@@ -571,7 +579,7 @@ defmodule Nintenlixir.CPU.MOS6502Test do
     set_registers(%{
       registers
       | accumulator: 0x01,
-        processor_status: p ||| ProcessorStatus.DecimalMode.value()
+        processor_status: p ||| @decimal_mode
     })
 
     write_memory(0xCAFE, 0x02)
@@ -713,14 +721,14 @@ defmodule Nintenlixir.CPU.MOS6502Test do
 
   test "MOS6502.bcc/1 not branching" do
     %{processor_status: p} = get_registers()
-    set_registers(%{get_registers() | processor_status: p ||| ProcessorStatus.CarryFlag.value()})
+    set_registers(%{get_registers() | processor_status: p ||| @carry_flag})
     assert {:ok, []} = MOS6502.bcc(0xCAFE)
     assert %{program_counter: 0xFFFC} = get_registers()
   end
 
   test "MOS6502.bcs/1 branching" do
     %{processor_status: p} = get_registers()
-    set_registers(%{get_registers() | processor_status: p ||| ProcessorStatus.CarryFlag.value()})
+    set_registers(%{get_registers() | processor_status: p ||| @carry_flag})
     assert {:ok, [:branched, :page_cross]} = MOS6502.bcs(0xCAFE)
     assert %{program_counter: 0xCAFE} = get_registers()
   end
@@ -732,7 +740,7 @@ defmodule Nintenlixir.CPU.MOS6502Test do
 
   test "MOS6502.beq/1 branching" do
     %{processor_status: p} = get_registers()
-    set_registers(%{get_registers() | processor_status: p ||| ProcessorStatus.ZeroFlag.value()})
+    set_registers(%{get_registers() | processor_status: p ||| @zero_flag})
     assert {:ok, [:branched, :page_cross]} = MOS6502.beq(0xCAFE)
     assert %{program_counter: 0xCAFE} = get_registers()
   end
@@ -747,7 +755,7 @@ defmodule Nintenlixir.CPU.MOS6502Test do
 
     set_registers(%{
       get_registers()
-      | processor_status: p ||| ProcessorStatus.NegativeFlag.value()
+      | processor_status: p ||| @negative_flag
     })
 
     assert {:ok, [:branched, :page_cross]} = MOS6502.bmi(0xCAFE)
@@ -766,7 +774,7 @@ defmodule Nintenlixir.CPU.MOS6502Test do
 
   test "MOS6502.bne/1 not branching" do
     %{processor_status: p} = get_registers()
-    set_registers(%{get_registers() | processor_status: p ||| ProcessorStatus.ZeroFlag.value()})
+    set_registers(%{get_registers() | processor_status: p ||| @zero_flag})
     assert {:ok, []} = MOS6502.bne(0xCAFE)
     assert %{program_counter: 0xFFFC} = get_registers()
   end
@@ -781,7 +789,7 @@ defmodule Nintenlixir.CPU.MOS6502Test do
 
     set_registers(%{
       get_registers()
-      | processor_status: p ||| ProcessorStatus.NegativeFlag.value()
+      | processor_status: p ||| @negative_flag
     })
 
     assert {:ok, []} = MOS6502.bpl(0xCAFE)
@@ -798,7 +806,7 @@ defmodule Nintenlixir.CPU.MOS6502Test do
 
     set_registers(%{
       get_registers()
-      | processor_status: p ||| ProcessorStatus.OverflowFlag.value()
+      | processor_status: p ||| @overflow_flag
     })
 
     assert {:ok, []} = MOS6502.bvc(0xCAFE)
@@ -810,7 +818,7 @@ defmodule Nintenlixir.CPU.MOS6502Test do
 
     set_registers(%{
       get_registers()
-      | processor_status: p ||| ProcessorStatus.OverflowFlag.value()
+      | processor_status: p ||| @overflow_flag
     })
 
     assert {:ok, [:branched, :page_cross]} = MOS6502.bvs(0xCAFE)
@@ -824,20 +832,20 @@ defmodule Nintenlixir.CPU.MOS6502Test do
 
   test "MOS6502.clc/0" do
     %{processor_status: p} = get_registers()
-    set_registers(%{get_registers() | processor_status: p ||| ProcessorStatus.CarryFlag.value()})
+    set_registers(%{get_registers() | processor_status: p ||| @carry_flag})
     assert :ok = MOS6502.clc()
     %{processor_status: p} = get_registers()
-    assert (p &&& ProcessorStatus.CarryFlag.value()) == 0
+    assert (p &&& @carry_flag) == 0
   end
 
   test "MOS6502.cld/0" do
     %{processor_status: p} = get_registers()
 
-    set_registers(%{get_registers() | processor_status: p ||| ProcessorStatus.DecimalMode.value()})
+    set_registers(%{get_registers() | processor_status: p ||| @decimal_mode})
 
     assert :ok = MOS6502.cld()
     %{processor_status: p} = get_registers()
-    assert (p &&& ProcessorStatus.DecimalMode.value()) == 0
+    assert (p &&& @decimal_mode) == 0
   end
 
   test "MOS6502.cli/0" do
@@ -845,12 +853,12 @@ defmodule Nintenlixir.CPU.MOS6502Test do
 
     set_registers(%{
       get_registers()
-      | processor_status: p ||| ProcessorStatus.InterruptDisable.value()
+      | processor_status: p ||| @interrupt_disable
     })
 
     assert :ok = MOS6502.cli()
     %{processor_status: p} = get_registers()
-    assert (p &&& ProcessorStatus.InterruptDisable.value()) == 0
+    assert (p &&& @interrupt_disable) == 0
   end
 
   test "MOS6502.clv/0" do
@@ -858,30 +866,30 @@ defmodule Nintenlixir.CPU.MOS6502Test do
 
     set_registers(%{
       get_registers()
-      | processor_status: p ||| ProcessorStatus.OverflowFlag.value()
+      | processor_status: p ||| @overflow_flag
     })
 
     assert :ok = MOS6502.clv()
     %{processor_status: p} = get_registers()
-    assert (p &&& ProcessorStatus.OverflowFlag.value()) == 0
+    assert (p &&& @overflow_flag) == 0
   end
 
   test "MOS6502.sec/0" do
     assert :ok = MOS6502.sec()
     %{processor_status: p} = get_registers()
-    assert (p &&& ProcessorStatus.CarryFlag.value()) != 0
+    assert (p &&& @carry_flag) != 0
   end
 
   test "MOS6502.sed/0" do
     assert :ok = MOS6502.sed()
     %{processor_status: p} = get_registers()
-    assert (p &&& ProcessorStatus.DecimalMode.value()) != 0
+    assert (p &&& @decimal_mode) != 0
   end
 
   test "MOS6502.sei/0" do
     assert :ok = MOS6502.sei()
     %{processor_status: p} = get_registers()
-    assert (p &&& ProcessorStatus.InterruptDisable.value()) != 0
+    assert (p &&& @interrupt_disable) != 0
   end
 
   test "MOS6502.brk/0" do
