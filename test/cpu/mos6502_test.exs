@@ -928,7 +928,7 @@ defmodule Nintenlixir.CPU.MOS6502Test do
 
   test "MOS6502.anc/1" do
     assert :ok = MOS6502.anc(0xCAFE)
-    assert %{processor_status: 0x24} = get_registers()
+    assert %{processor_status: 0x26} = get_registers()
   end
 
   test "MOS6502.alr/1" do
@@ -985,14 +985,14 @@ defmodule Nintenlixir.CPU.MOS6502Test do
     write_memory(0xCAFE, 0x0E)
     assert :ok = MOS6502.sre(0xCAFE)
     assert {:ok, 0x07} = read_memory(0xCAFE)
-    %{accumulator: 0x07, processor_status: 0x25} = get_registers()
+    assert %{accumulator: 0x07, processor_status: 0x25} = get_registers()
   end
 
   test "MOS6502.rra/1" do
     write_memory(0xCAFE, 0x0E)
     assert :ok = MOS6502.rra(0xCAFE)
     assert {:ok, 0x07} = read_memory(0xCAFE)
-    %{accumulator: 0x08, processor_status: 0x25} = get_registers()
+    assert %{accumulator: 0x08, processor_status: 0x64} = get_registers()
   end
 
   test "MOS6502.control_address/1" do

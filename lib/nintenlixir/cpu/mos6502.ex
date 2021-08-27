@@ -24,7 +24,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def reset do
     :ok = Memory.reset(memory_server_name())
-    GenServer.call(__MODULE__, :reset)
+    :ok = GenServer.call(__MODULE__, :reset)
   end
 
   def get_registers, do: GenServer.call(__MODULE__, :get_registers)
@@ -35,7 +35,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def push16(value) do
     :ok = push(value >>> 8)
-    push(value &&& 0x00FF)
+    :ok = push(value &&& 0x00FF)
   end
 
   def pop, do: GenServer.call(__MODULE__, :pop)
@@ -336,22 +336,22 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def sax(address) do
     %{accumulator: a, x: x} = get_registers()
-    write_memory(address, a &&& x)
+    :ok = write_memory(address, a &&& x)
   end
 
   def sta(address) do
     %{accumulator: a} = get_registers()
-    write_memory(address, a)
+    :ok = write_memory(address, a)
   end
 
   def stx(address) do
     %{x: x} = get_registers()
-    write_memory(address, x)
+    :ok = write_memory(address, x)
   end
 
   def sty(address) do
     %{y: y} = get_registers()
-    write_memory(address, y)
+    :ok = write_memory(address, y)
   end
 
   def transfer(from, to) do
@@ -372,77 +372,77 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def txs do
     %{x: x} = registers = get_registers()
-    set_registers(%{registers | stack_pointer: x})
+    :ok = set_registers(%{registers | stack_pointer: x})
   end
 
   def pha do
     %{accumulator: a} = get_registers()
-    push(a)
+    :ok = push(a)
   end
 
   def php do
     %{processor_status: p} = get_registers()
-    push(p ||| @break_command ||| @unused)
+    :ok = push(p ||| @break_command ||| @unused)
   end
 
   def pla do
     {:ok, value} = pop()
     {:ok, ^value} = set_ZN_flags(value)
-    set_registers(%{get_registers() | accumulator: value})
+    :ok = set_registers(%{get_registers() | accumulator: value})
   end
 
   def plp do
     {:ok, value} = pop()
     p = value &&& ~~~(@break_command ||| @unused)
-    set_registers(%{get_registers() | processor_status: p})
+    :ok = set_registers(%{get_registers() | processor_status: p})
   end
 
   def and_op(address) do
     {:ok, value} = read_memory(address)
-    %{accumulator: a} = registers = get_registers()
+    %{accumulator: a} = get_registers()
     {:ok, result} = set_ZN_flags(a &&& value)
-    set_registers(%{registers | accumulator: result})
+    :ok = set_registers(%{get_registers() | accumulator: result})
   end
 
   def xor_op(address) do
     {:ok, value} = read_memory(address)
-    %{accumulator: a} = registers = get_registers()
+    %{accumulator: a} = get_registers()
     {:ok, result} = set_ZN_flags(bxor(a, value))
-    set_registers(%{registers | accumulator: result})
+    :ok = set_registers(%{get_registers() | accumulator: result})
   end
 
   def or_op(address) do
     {:ok, value} = read_memory(address)
-    %{accumulator: a} = registers = get_registers()
+    %{accumulator: a} = get_registers()
     {:ok, result} = set_ZN_flags(a ||| value)
-    set_registers(%{registers | accumulator: result})
+    :ok = set_registers(%{get_registers() | accumulator: result})
   end
 
   def bit(address) do
     {:ok, value} = read_memory(address)
-    %{accumulator: a, processor_status: p} = registers = get_registers()
+    %{accumulator: a, processor_status: p} = get_registers()
     {:ok, _} = set_Z_flag(value &&& a)
 
     p =
       (p &&& ~~~(@negative_flag ||| @overflow_flag)) |||
         (value &&& (@negative_flag ||| @overflow_flag))
 
-    set_registers(%{registers | processor_status: p})
+    :ok = set_registers(%{get_registers() | processor_status: p})
   end
 
   def disable_decimal_mode do
-    GenServer.call(__MODULE__, {:set_state, %{get_state() | decimal_mode: false}})
+    :ok = GenServer.call(__MODULE__, {:set_state, %{get_state() | decimal_mode: false}})
   end
 
   def addition(value) do
-    %{accumulator: a, processor_status: p} = registers = get_registers()
+    %{accumulator: a, processor_status: p} = get_registers()
     %{decimal_mode: decimal_mode} = get_state()
 
     if !decimal_mode || (p &&& @decimal_mode) == 0 do
       {:ok, result} = set_C_flag_addition(a + value + (p &&& @carry_flag))
       {:ok, ^result} = set_V_flag_addition(a, value, result)
       {:ok, ^result} = set_ZN_flags(result)
-      set_registers(%{registers | accumulator: result})
+      :ok = set_registers(%{get_registers() | accumulator: result})
     else
       low = (a &&& 0x000F) + (value &&& 0x000F) + (p &&& @carry_flag)
       high = (a &&& 0x00F0) + (value &&& 0x00F0)
@@ -471,13 +471,13 @@ defmodule Nintenlixir.CPU.MOS6502 do
       {:ok, result} = set_C_flag_addition(high ||| (low &&& 0x000F))
       {:ok, ^result} = set_V_flag_addition(a, value, result)
       {:ok, ^result} = set_ZN_flags(result)
-      set_registers(%{registers | accumulator: result})
+      :ok = set_registers(%{get_registers() | accumulator: result})
     end
   end
 
   def adc(address) do
     {:ok, value} = read_memory(address)
-    addition(value)
+    :ok = addition(value)
   end
 
   def sbc(address) do
@@ -493,7 +493,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
         0x99 - value
       end
 
-    addition(value)
+    :ok = addition(value)
   end
 
   def compare(value1, value2) do
@@ -506,19 +506,19 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def cmp(address) do
     {:ok, value} = read_memory(address)
     %{accumulator: a} = get_registers()
-    compare(value, a)
+    :ok = compare(value, a)
   end
 
   def cpx(address) do
     {:ok, value} = read_memory(address)
     %{x: x} = get_registers()
-    compare(value, x)
+    :ok = compare(value, x)
   end
 
   def cpy(address) do
     {:ok, value} = read_memory(address)
     %{y: y} = get_registers()
-    compare(value, y)
+    :ok = compare(value, y)
   end
 
   def inc(ref), do: unary_op(ref, &Kernel.+/2)
@@ -528,29 +528,29 @@ defmodule Nintenlixir.CPU.MOS6502 do
   defp unary_op(register, f) when is_atom(register) do
     registers = get_registers()
     value = f.(Map.get(registers, register), 1)
-    set_ZN_flags(value)
-    set_registers(registers |> Map.put(register, value))
+    {:ok, ^value} = set_ZN_flags(value)
+    :ok = set_registers(registers |> Map.put(register, value))
   end
 
   defp unary_op(address, f) do
     {:ok, value} = read_memory(address)
     value = f.(value, 1)
-    set_ZN_flags(value)
-    write_memory(address, value)
+    {:ok, ^value} = set_ZN_flags(value)
+    :ok = write_memory(address, value)
   end
 
   def shift(:left, value, ref) do
     value = value <<< 1
     c = (value &&& @negative_flag) >>> 7
     :ok = update_shifted_value(value, c)
-    store(value, ref)
+    :ok = store(value, ref)
   end
 
   def shift(:right, value, ref) do
     value = value >>> 1
     c = value &&& @carry_flag
     :ok = update_shifted_value(value, c)
-    store(value, ref)
+    :ok = store(value, ref)
   end
 
   def rotate(:left, value, ref) do
@@ -562,7 +562,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
     c = (value &&& @negative_flag) >>> 7
     :ok = update_shifted_value(value, c)
-    store(value, ref)
+    :ok = store(value, ref)
   end
 
   def rotate(:right, value, ref) do
@@ -574,7 +574,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
     c = value &&& @carry_flag
     :ok = update_shifted_value(value, c)
-    store(value, ref)
+    :ok = store(value, ref)
   end
 
   defp store(value, ref) when is_atom(ref),
@@ -597,12 +597,12 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{program_counter: pc} = get_registers()
     value = pc - 1
     :ok = push16(value)
-    set_registers(%{get_registers() | program_counter: address})
+    :ok = set_registers(%{get_registers() | program_counter: address})
   end
 
   def rts do
     {:ok, value} = pop16()
-    set_registers(%{get_registers() | program_counter: value + 1})
+    :ok = set_registers(%{get_registers() | program_counter: value + 1})
   end
 
   def branch(address, f) do
@@ -626,7 +626,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
       (p &&& @carry_flag) == 0
     end
 
-    branch(address, f)
+    {:ok, _} = branch(address, f)
   end
 
   def bcs(address) do
@@ -635,7 +635,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
       (p &&& @carry_flag) != 0
     end
 
-    branch(address, f)
+    {:ok, _} = branch(address, f)
   end
 
   def beq(address) do
@@ -644,7 +644,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
       (p &&& @zero_flag) != 0
     end
 
-    branch(address, f)
+    {:ok, _} = branch(address, f)
   end
 
   def bmi(address) do
@@ -653,7 +653,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
       (p &&& @negative_flag) != 0
     end
 
-    branch(address, f)
+    {:ok, _} = branch(address, f)
   end
 
   def bne(address) do
@@ -662,7 +662,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
       (p &&& @zero_flag) == 0
     end
 
-    branch(address, f)
+    {:ok, _} = branch(address, f)
   end
 
   def bpl(address) do
@@ -671,7 +671,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
       (p &&& @negative_flag) == 0
     end
 
-    branch(address, f)
+    {:ok, _} = branch(address, f)
   end
 
   def bvc(address) do
@@ -680,7 +680,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
       (p &&& @overflow_flag) == 0
     end
 
-    branch(address, f)
+    {:ok, _} = branch(address, f)
   end
 
   def bvs(address) do
@@ -689,7 +689,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
       (p &&& @overflow_flag) != 0
     end
 
-    branch(address, f)
+    {:ok, _} = branch(address, f)
   end
 
   def clc, do: clear_processor_status_flag(@carry_flag)
@@ -700,7 +700,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   defp clear_processor_status_flag(flag) do
     %{processor_status: p} = get_registers()
     p = p &&& ~~~flag
-    set_registers(%{get_registers() | processor_status: p})
+    :ok = set_registers(%{get_registers() | processor_status: p})
   end
 
   def sec, do: set_processor_status_flag(@carry_flag)
@@ -710,14 +710,14 @@ defmodule Nintenlixir.CPU.MOS6502 do
   defp set_processor_status_flag(flag) do
     %{processor_status: p} = get_registers()
     p = p ||| flag
-    set_registers(%{get_registers() | processor_status: p})
+    :ok = set_registers(%{get_registers() | processor_status: p})
   end
 
   def brk do
     %{program_counter: pc, processor_status: p} = get_registers()
     pc = pc + 1
-    push16(pc)
-    push(p ||| @break_command ||| @unused)
+    :ok = push16(pc)
+    :ok = push(p ||| @break_command ||| @unused)
 
     p = p ||| @interrupt_disable
 
@@ -725,7 +725,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     {:ok, high} = read_memory(0xFFFF)
 
     pc = high <<< 8 ||| low
-    set_registers(%{get_registers() | program_counter: pc, processor_status: p})
+    :ok = set_registers(%{get_registers() | program_counter: pc, processor_status: p})
   end
 
   def noop, do: :ok
@@ -733,61 +733,61 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def asl do
     %{accumulator: a} = get_registers()
-    shift(:left, a, :accumulator)
+    :ok = shift(:left, a, :accumulator)
   end
 
   def asl(address) do
     {:ok, value} = read_memory(address)
-    shift(:left, value, address)
+    :ok = shift(:left, value, address)
   end
 
   def lsr do
     %{accumulator: a} = get_registers()
-    shift(:right, a, :accumulator)
+    :ok = shift(:right, a, :accumulator)
   end
 
   def lsr(address) do
     {:ok, value} = read_memory(address)
-    shift(:right, value, address)
+    :ok = shift(:right, value, address)
   end
 
   def rol do
     %{accumulator: a} = get_registers()
-    rotate(:left, a, :accumulator)
+    :ok = rotate(:left, a, :accumulator)
   end
 
   def rol(address) do
     {:ok, value} = read_memory(address)
-    rotate(:left, value, address)
+    :ok = rotate(:left, value, address)
   end
 
   def ror do
     %{accumulator: a} = get_registers()
-    rotate(:right, a, :accumulator)
+    :ok = rotate(:right, a, :accumulator)
   end
 
   def ror(address) do
     {:ok, value} = read_memory(address)
-    rotate(:right, value, address)
+    :ok = rotate(:right, value, address)
   end
 
   def anc(address) do
     :ok = and_op(address)
     %{processor_status: p} = get_registers()
     p = (p &&& ~~~@carry_flag) ||| p >>> 7
-    set_registers(%{get_registers() | processor_status: p})
+    :ok = set_registers(%{get_registers() | processor_status: p})
   end
 
   def alr(address) do
     :ok = and_op(address)
     %{accumulator: a} = get_registers()
-    shift(:right, a, :accumulator)
+    :ok = shift(:right, a, :accumulator)
   end
 
   def arr(address) do
     :ok = and_op(address)
     %{accumulator: a} = get_registers()
-    rotate(:right, a, :accumulator)
+    :ok = rotate(:right, a, :accumulator)
   end
 
   def shy(_), do: :ok
@@ -799,24 +799,24 @@ defmodule Nintenlixir.CPU.MOS6502 do
     x = x &&& a
     :ok = compare(value, x)
     x = x - value
-    set_registers(%{get_registers() | x: x})
+    :ok = set_registers(%{get_registers() | x: x})
   end
 
   def rti do
     {:ok, p} = pop()
     p = p &&& ~~~(@break_command ||| @unused)
     {:ok, pc} = pop16()
-    set_registers(%{get_registers() | program_counter: pc, processor_status: p})
+    :ok = set_registers(%{get_registers() | program_counter: pc, processor_status: p})
   end
 
   def dcp(address) do
     :ok = dec(address)
-    cmp(address)
+    :ok = cmp(address)
   end
 
   def isb(address) do
     :ok = inc(address)
-    sbc(address)
+    :ok = sbc(address)
   end
 
   def slo(address) do
@@ -825,25 +825,25 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{accumulator: a} = get_registers()
     a = a ||| value
     {:ok, ^a} = set_ZN_flags(a)
-    set_registers(%{get_registers() | accumulator: a})
+    :ok = set_registers(%{get_registers() | accumulator: a})
   end
 
   def rla(address) do
     {:ok, value} = read_memory(address)
-    rotate(:left, value, address)
-    and_op(address)
+    :ok = rotate(:left, value, address)
+    :ok = and_op(address)
   end
 
   def sre(address) do
     {:ok, value} = read_memory(address)
     :ok = rotate(:right, value, address)
-    xor_op(address)
+    :ok = xor_op(address)
   end
 
   def rra(address) do
     {:ok, value} = read_memory(address)
     :ok = rotate(:right, value, address)
-    adc(address)
+    :ok = adc(address)
   end
 
   def control_address(opcode) do
