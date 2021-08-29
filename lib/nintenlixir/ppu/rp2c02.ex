@@ -1,6 +1,6 @@
 defmodule Nintenlixir.PPU.RP2C02 do
   use GenServer
-  
+
   alias Nintenlixir.PPU.Registers
   alias Nintenlixir.PPU.TileData
 
@@ -16,8 +16,7 @@ defmodule Nintenlixir.PPU.RP2C02 do
   end
 
   # Helpers
-  
+
   defp new_ppu() do
-    
   end
 end

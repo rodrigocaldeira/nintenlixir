@@ -83,7 +83,7 @@ defmodule Nintenlixir.MemoryTest do
 
     assert :ok = Memory.write(@processor, 0x1000, 0x3FFF)
     assert {:ok, 0xCAFE} = Memory.read(@processor, 0x3FFF)
-    
+
     for address <- 0x1000..0x2FFF do
       assert {:ok, "DUMMY MAPPER"} = Memory.read(@processor, address)
     end
