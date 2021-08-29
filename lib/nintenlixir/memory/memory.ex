@@ -32,12 +32,10 @@ defmodule Nintenlixir.Memory do
     GenServer.call(processor, {:set_mirrors, mirrors})
   end
 
-  def set_read_mappers(processor, %{} = mappers) do
-    GenServer.call(processor, {:set_read_mappers, mappers})
-  end
-
-  def set_write_mappers(processor, %{} = mappers) do
-    GenServer.call(processor, {:set_write_mappers, mappers})
+  def add_mapper(processor, mapper, reference) do
+    mappings = Mapper.build_mappings(mapper, reference)
+    :ok = GenServer.call(processor, {:set_read_mappers, mappings})
+    GenServer.call(processor, {:set_write_mappers, mappings})
   end
 
   # Server
@@ -121,12 +119,12 @@ defmodule Nintenlixir.Memory do
     {:reply, :ok, %{state | mirrors: mirrors}}
   end
 
-  def handle_call({:set_read_mappers, mappers}, _, state) do
-    {:reply, :ok, %{state | read_mappers: mappers}}
+  def handle_call({:set_read_mappers, mappers}, _, %{read_mappers: read_mappers} = state) do
+    {:reply, :ok, %{state | read_mappers: Map.merge(read_mappers, mappers)}}
   end
 
-  def handle_call({:set_write_mappers, mappers}, _, state) do
-    {:reply, :ok, %{state | write_mappers: mappers}}
+  def handle_call({:set_write_mappers, mappers}, _, %{write_mappers: write_mappers} = state) do
+    {:reply, :ok, %{state | write_mappers: Map.merge(write_mappers, mappers)}}
   end
 
   # Private helpers

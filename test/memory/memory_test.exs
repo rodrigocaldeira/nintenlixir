@@ -78,30 +78,13 @@ defmodule Nintenlixir.MemoryTest do
   test "Dummy mapper" do
     dummy_mapper = %DummyMapper{}
 
-    read_mappers = %{
-      0xCAFE => dummy_mapper
-    }
+    assert :ok = Memory.add_mapper(@processor, dummy_mapper, :cpu)
+    assert :ok = Memory.add_mapper(@processor, dummy_mapper, :ppu)
 
-    write_mappers = %{
-      0xCAFE => dummy_mapper
-    }
-
-    assert :ok = Memory.set_read_mappers(@processor, read_mappers)
-    assert :ok = Memory.set_write_mappers(@processor, write_mappers)
-
-    assert {:ok, "DUMMY MAPPER"} = Memory.read(@processor, 0xCAFE)
-    assert :ok = Memory.write(@processor, 0xCAFE, 0x1234)
-    assert {:ok, 0xCAFE} = Memory.read(@processor, 0x1234)
-
-    mappers = Enum.map(0x0200..0x3FFF, fn address -> {address, dummy_mapper} end)
-
-    read_mappers = Map.new(mappers)
-    write_mappers = Map.new(mappers)
-
-    assert :ok = Memory.set_read_mappers(@processor, read_mappers)
-    assert :ok = Memory.set_write_mappers(@processor, write_mappers)
-
-    for address <- 0x0200..0x3FFF do
+    assert :ok = Memory.write(@processor, 0x1000, 0x3FFF)
+    assert {:ok, 0xCAFE} = Memory.read(@processor, 0x3FFF)
+    
+    for address <- 0x1000..0x2FFF do
       assert {:ok, "DUMMY MAPPER"} = Memory.read(@processor, address)
     end
   end

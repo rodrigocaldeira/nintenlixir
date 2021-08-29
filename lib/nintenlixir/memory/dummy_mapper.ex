@@ -18,5 +18,15 @@ defmodule Nintenlixir.Memory.DummyMapper do
     def write(_, address, data, memory) do
       DummyMapper.write(address, data, memory)
     end
+
+    def build_mappings(mapper, :cpu) do
+      Enum.map(0x1000..0x1FFF, fn address -> {address, mapper} end)
+      |> Map.new()
+    end
+
+    def build_mappings(mapper, :ppu) do
+      Enum.map(0x2000..0x2FFF, fn address -> {address, mapper} end)
+      |> Map.new()
+    end
   end
 end
