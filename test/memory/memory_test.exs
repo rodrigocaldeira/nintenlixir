@@ -88,4 +88,19 @@ defmodule Nintenlixir.MemoryTest do
       assert {:ok, "DUMMY MAPPER"} = Memory.read(@processor, address)
     end
   end
+
+  test "Memory.disable_reads/0 and Memory.enable_reads/0" do
+    assert :ok = Memory.disable_reads(@processor)
+    assert {:error, :cannot_read} = Memory.read(@processor, 0xCAFE)
+    assert :ok = Memory.enable_reads(@processor)
+    assert {:ok, 0xFF} = Memory.read(@processor, 0xCAFE)
+  end
+
+  test "Memory.disable_writes/0 and Memory.enable_writes/" do
+    assert :ok = Memory.disable_writes(@processor)
+    assert {:error, :cannot_write} = Memory.write(@processor, 0xCAFE, 0x0E)
+    assert :ok = Memory.enable_writes(@processor)
+    assert :ok = Memory.write(@processor, 0xCAFE, 0x0E)
+    assert {:ok, 0x0E} = Memory.read(@processor, 0xCAFE)
+  end
 end

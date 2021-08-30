@@ -38,6 +38,22 @@ defmodule Nintenlixir.Memory do
     GenServer.call(processor, {:set_write_mappers, mappings})
   end
 
+  def disable_reads(processor) do
+    GenServer.call(processor, :disable_reads)
+  end
+
+  def enable_reads(processor) do
+    GenServer.call(processor, :enable_reads)
+  end
+
+  def disable_writes(processor) do
+    GenServer.call(processor, :disable_writes)
+  end
+
+  def enable_writes(processor) do
+    GenServer.call(processor, :enable_writes)
+  end
+
   # Server
 
   @impl GenServer
@@ -115,6 +131,10 @@ defmodule Nintenlixir.Memory do
     {:reply, :ok, %{state | memory: new_memory}}
   end
 
+  def handle_call({:write, {_, _}}, _, %{can_write: false} = state) do
+    {:reply, {:error, :cannot_write}, state}
+  end
+
   def handle_call({:set_mirrors, mirrors}, _, state) do
     {:reply, :ok, %{state | mirrors: mirrors}}
   end
@@ -125,6 +145,22 @@ defmodule Nintenlixir.Memory do
 
   def handle_call({:set_write_mappers, mappers}, _, %{write_mappers: write_mappers} = state) do
     {:reply, :ok, %{state | write_mappers: Map.merge(write_mappers, mappers)}}
+  end
+
+  def handle_call(:disable_reads, _, state) do
+    {:reply, :ok, %{state | can_read: false}}
+  end
+
+  def handle_call(:enable_reads, _, state) do
+    {:reply, :ok, %{state | can_read: true}}
+  end
+
+  def handle_call(:disable_writes, _, state) do
+    {:reply, :ok, %{state | can_write: false}}
+  end
+
+  def handle_call(:enable_writes, _, state) do
+    {:reply, :ok, %{state | can_write: true}}
   end
 
   # Private helpers
