@@ -38,15 +38,18 @@ defmodule Nintenlixir.PPU.OAM do
   end
 
   def increment_address(mask) do
-    GenServer.call(__MODULE__, {:increment_address, mask})
+    %{address: address} = get_state()
+    set_state(%{get_state() | address: address + 1 &&& mask})
   end
 
   def fetch_address do
-    %{address: address} = state = get_state()
+    %{address: address} = get_state()
+
     if address < 0x0100 do
       {:ok, latch} = read(address)
-      GenServer.call(__MODULE__, {:set_state, %{state | latch: latch}})
+      set_state(%{get_state() | latch: latch})
     end
+
     :ok
   end
 
@@ -58,24 +61,26 @@ defmodule Nintenlixir.PPU.OAM do
 
   def copy_y_position(scanline, size) do
     %{
-      latch: latch, 
+      latch: latch,
       index: index,
       address: address,
       write_cycle: write_cycle
     } = get_state()
 
-    if scanline - latch < size do
+    if (scanline - latch &&& 0xFFFF) < size do
       write_buffer(index, latch)
       :ok = increment_address(0x00FF)
       set_state(%{get_state() | write_cycle: :copy_index})
     else
       address = address + 4
-      write_cycle = 
-        if address == 0x0100 do
+
+      write_cycle =
+        if address >= 0x0100 do
           :fail_copy_y_position
         else
           write_cycle
         end
+
       set_state(%{get_state() | address: address, write_cycle: write_cycle})
     end
   end
@@ -109,6 +114,10 @@ defmodule Nintenlixir.PPU.OAM do
     handle_copy_x_position(get_state())
   end
 
+  defp handle_copy_x_position(%{address: address}) when address >= 0x0100 do
+    set_state(%{get_state() | write_cycle: :fail_copy_y_position})
+  end
+
   defp handle_copy_x_position(%{index: index}) when index < 32 do
     set_state(%{get_state() | write_cycle: :copy_y_position})
   end
@@ -126,12 +135,12 @@ defmodule Nintenlixir.PPU.OAM do
       latch: latch
     } = get_state()
 
-    if scanline - latch < size do
+    if (scanline - latch &&& 0xFFFF) < size do
       :ok = increment_address(0x00FF)
       :ok = set_state(%{get_state() | write_cycle: :evaluate_index})
       :sprite_overflow
     else
-      address = ((address + 4) &&& 0x00FC) + ((address + 1) &&& 0x0003)
+      address = (address + 4 &&& 0x00FC) + (address + 1 &&& 0x0003)
 
       if address <= 0x0005 do
         set_state(%{get_state() | address: address &&& 0x00FC, write_cycle: :fail_copy_y_position})
@@ -166,7 +175,7 @@ defmodule Nintenlixir.PPU.OAM do
 
   def fail_copy_y_position do
     %{address: address} = get_state()
-    set_state(%{get_state() | address: (address + 4) &&& 0x00FF})
+    set_state(%{get_state() | address: address + 4 &&& 0x00FF})
   end
 
   def sprite(index) do
@@ -185,16 +194,16 @@ defmodule Nintenlixir.PPU.OAM do
     {:ok, data_1 ||| data_2 ||| data_3 ||| data_4}
   end
 
-  def sprite_evaluation(scanline, _, _) when scanline == 261, do: :ok
+  def sprite_evaluation(261, _, _), do: :ok
 
   def sprite_evaluation(_, 1, _) do
     set_state(%{
-      get_state() |
-      address: 0,
-      latch: 0xFF,
-      index: 0,
-      sprite_zero_in_buffer: false,
-      write_cycle: :clear_buffer
+      get_state()
+      | address: 0,
+        latch: 0xFF,
+        index: 0,
+        sprite_zero_in_buffer: false,
+        write_cycle: :clear_buffer
     })
 
     Memory.disable_reads(@basic_memory_name)
@@ -204,11 +213,11 @@ defmodule Nintenlixir.PPU.OAM do
 
   def sprite_evaluation(_, 65, _) do
     set_state(%{
-      get_state() |
-      address: 0,
-      latch: 0xFF,
-      index: 0,
-      write_cycle: :copy_y_position
+      get_state()
+      | address: 0,
+        latch: 0xFF,
+        index: 0,
+        write_cycle: :copy_y_position
     })
 
     Memory.enable_reads(@basic_memory_name)
@@ -217,27 +226,33 @@ defmodule Nintenlixir.PPU.OAM do
 
   def sprite_evaluation(scanline, cycle, size) when rem(cycle, 2) == 0 do
     %{write_cycle: write_cycle} = get_state()
-    exec_cycle_function(write_cycle, scanline, size)  
+    exec_cycle_function(write_cycle, scanline, size)
   end
 
-  def sprite_evaluation(_, _, _), do: fetch_address()
+  def sprite_evaluation(_, _, _) do
+    fetch_address()
+  end
 
   def exec_cycle_function(:clear_buffer, _, _), do: clear_buffer()
+
   def exec_cycle_function(:copy_y_position, scanline, size) do
     copy_y_position(scanline, size)
   end
+
   def exec_cycle_function(:copy_index, _, _), do: copy_index()
   def exec_cycle_function(:copy_attributes, _, _), do: copy_attributes()
   def exec_cycle_function(:copy_x_position, _, _), do: copy_x_position()
+
   def exec_cycle_function(:evaluate_y_position, scanline, size) do
     evaluate_y_position(scanline, size)
   end
+
   def exec_cycle_function(:evaluate_index, _, _), do: evaluate_index()
   def exec_cycle_function(:evaluate_attributes, _, _), do: evaluate_attributes()
   def exec_cycle_function(:evaluate_x_position, _, _), do: evaluate_x_position()
   def exec_cycle_function(:fail_copy_y_position, _, _), do: fail_copy_y_position()
 
-  #Server
+  # Server
 
   @impl GenServer
   def init(state) do
@@ -246,12 +261,8 @@ defmodule Nintenlixir.PPU.OAM do
 
   @impl GenServer
   def handle_call(:get_state, _, state), do: {:reply, state, state}
-  
-  def handle_call({:set_state, state}, _, _), do: {:reply, :ok, state}
 
-  def handle_call({:increment_address, mask}, _, %{address: address} = state) do
-    {:reply, :ok, %{state | address: (address + 1) &&& mask}}
-  end
+  def handle_call({:set_state, state}, _, _), do: {:reply, :ok, state}
 
   # Helpers
 
