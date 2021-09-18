@@ -510,72 +510,423 @@ defmodule Nintenlixir.PPU.RP2C02 do
     data >>> (((address_register &&& 0x02) ||| ((address_register >>> 0x04) &&& 0x04)) &&& 0x03)
   end
 
-  def sprite_address(sprite) do
+  def sprite_address(sprite_data) do
+    %{
+      scanline: scanline
+    } = get_state()
 
+    comparitor = scanline - (sprite(sprite_data, @y_position) &&& 0xFFFF)
+
+    comparitor = 
+      case sprite(sprite_data, @flip_vertically) do
+        0 -> comparitor
+        _ ->
+          bxor(comparitor, 0x000F)
+      end
+
+    address = 
+      case controller(@sprite_size) do
+        8 ->
+          controller(@sprite_pattern_address) ||| ((sprite(sprite_data, @time_number) &&& 0xFFFF) <<< 4)
+
+        16 ->
+          ((sprite(sprite_data, @tile_bank) &&& 0xFFFF) <<< 12) |||
+            ((sprite(sprite_data, @tile_number) &&& 0xFFFF) <<< 5) |||
+              (comparitor &&& 0x08) <<< 1
+      end
+
+    address ||| (comparitor &&& 0x07)
   end
 
   def priority_multiplexer(bg_pixel, bg_index, sprite_pixel, sprite_index, sprite_priority) do
+    %{
+      show_background: show_background,
+      show_sprites: show_sprites,
+      palette: palette
+    } = get_state()
 
+    case show_background do
+      false -> bg_index = 0
+    end
+
+    case show_sprites do
+      false -> sprite_index = 0
+    end
+
+    case bg_index do
+      0 ->
+        case sprite_index do
+          0 -> Enum.at(palette, 0)
+          _ -> sprite_pixel
+        end
+
+      _ ->
+        case sprite_index do
+          0 -> bg_pixel
+          _ ->
+            case sprite_priority do
+              0 -> sprite_pixel
+              _ -> bg_pixel
+            end
+        end
+    end
   end
 
   def render_background do
+    %{
+      cycle: cycle,
+      tile_data: tile_data,
+      registers: %{
+        scroll: scroll
+      }
+    } = get_state()
 
+    show_background = mask?(@show_background)
+    show_background_left = mask?(@show_background_left)
+
+    cond do
+      show_background && (show_background_left || cycle > 8) ->
+        index = ((cycle - 1) &&& 0x0007) + scroll
+        %{pixel: bg_pixel, index: bg_index} = Enum.at(tile_data, index)
+        {bg_pixel, bg_index}
+
+      true -> {0x00, 0x00}
+    end
   end
 
   def render_sprites do
+    %{
+      cycle: cycle
+    } = get_state()
 
+    show_background = mask?(@show_background)
+    show_background_left = mask?(@show_background_left)
+
+    render_sprites(show_background && (show_background_left || cycle > 8))
+  end
+
+  def render_sprites(false) do
+    %{
+      sprite_index: 0x00,
+      sprite_pixel: 0x00,
+      sprite_priority: 0x00,
+      sprite_zero: false
+    }
+  end
+
+  def render_sprites(true) do
+    %{
+      cycle: cycle,
+      sprites: sprites
+    } = get_state()
+
+    cycle = cycle - 1
+
+    Enum.find(sprites, fn %{
+      tile_data: tile_data,
+      x_position: x_position
+    } ->
+        x = cycle - x_position 
+        case x do
+          x when x < 8 ->
+            %{index: index} = Enum.at(tile_data, x)
+            x < 8 && index != 0x00
+
+          _ -> false
+        end
+    end)
+    |> case do
+      nil -> 
+        render_sprites(false)
+
+      %{
+        tile_data: tile_data,
+        priority: priority,
+        zero: zero,
+        x_position: x_position
+      } ->
+        %{index: index, pixel: pixel} = Enum.at(tile_data, cycle - x_position)
+        %{
+          sprite_index: index,
+          sprite_pixel: pixel,
+          sprite_priority: priority,
+          zero: zero
+        }
+    end
   end
 
   def open_nt_byte do
-
+    %{
+      registers: %{
+        address: address
+      }
+    } = get_state()
+    set_state(%{get_state() | address_line: open_name(address)})
   end
 
   def fetch_nt_byte do
-
+    %{
+      address_line: address_line
+    } = get_state()
+    set_state(%{get_state() | pattern_address: fetch_name(address_line)})
   end
 
   def open_at_byte do
-
+    %{
+      registers: %{
+        address: address
+      }
+    } = get_state()
+    set_state(%{get_state() | address_line: open_attribute(address)})
   end
 
   def fetch_at_byte do
-    
+    %{
+      address_line: address_line
+    } = get_state()
+    set_state(%{get_state() | attribute_next: fetch_name(address_line)})
   end
 
   def open_low_bg_tile_byte do
-
+    %{
+      pattern_address: pattern_address
+    } = get_state()
+    set_state(%{get_state() | address_line: pattern_address})
   end
 
   def fetch_low_bg_tile_byte do
-
+    %{
+      address_line: address_line
+    } = get_state()
+    {:ok, data} = read(address_line)
+    set_state(%{get_state() | tiles_latch_low: data})
   end
 
   def open_high_bg_tile_byte do
-
+    %{
+      pattern_address: pattern_address
+    } = get_state()
+    set_state(%{get_state() | address_line: pattern_address &&& 0x0008})
   end
 
   def fetch_high_bg_tile_byte do
+    %{
+      address_line: address_line
+    } = get_state()
+    {:ok, data} = read(address_line)
+    set_state(%{get_state() | tiles_latch_high: data})
 
+    increment_x()
+
+    %{cycle: cycle} = get_state()
+
+    if cycle == 256 do
+      increment_y()
+    end
   end
 
   def set_hori_v do
-
+    transfer_x()
   end
 
   def set_vert_v do
+    %{scanline: scanline} = get_state()
 
+    if scanline == 261 do
+      transfer_y()
+    end
   end
 
-  def init_cycle_jump_table do
+  @open_nt_byte_cycles [1, 9, 17, 25, 33, 41, 49, 57, 65, 73, 81, 89, 97, 105, 113, 121, 129, 137,
+        145, 153, 161, 169, 177, 185, 193, 201, 209, 217, 225, 233, 241, 249,
+        321, 329, 337, 339]
+  @fetch_nt_byte_cycles [2, 10, 18, 26, 34, 42, 50, 58, 66, 74, 82, 90, 98, 106, 114, 122, 130, 138,
+        146, 154, 162, 170, 178, 186, 194, 202, 210, 218, 226, 234, 242, 250,
+        322, 330, 338, 340]
+  @open_at_byte_cycles [3, 11, 19, 27, 35, 43, 51, 59, 67, 75, 83, 91, 99, 107, 115, 123, 131, 139,
+        147, 155, 163, 171, 179, 187, 195, 203, 211, 219, 227, 235, 243, 251,
+        323, 331]
+  @fetch_at_byte_cycles [4, 12, 20, 28, 36, 44, 52, 60, 68, 76, 84, 92, 100, 108, 116, 124, 132, 140,
+        148, 156, 164, 172, 180, 188, 196, 204, 212, 220, 228, 236, 244, 252,
+        324, 332]
+  @open_low_bg_tile_byte_cycles [5, 13, 21, 29, 37, 45, 53, 61, 69, 77, 85, 93, 101, 109, 117, 125, 133, 141,
+        149, 157, 165, 173, 181, 189, 197, 205, 213, 221, 229, 237, 245, 253,
+        325, 333]
+  @fetch_low_bg_tile_byte_cycles [6, 14, 22, 30, 38, 46, 54, 62, 70, 78, 86, 94, 102, 110, 118, 126, 134, 142,
+        150, 158, 166, 174, 182, 190, 198, 206, 214, 222, 230, 238, 246, 254,
+        326, 334]
+  @open_high_bg_tile_byte_cycles [7, 15, 23, 31, 39, 47, 55, 63, 71, 79, 87, 95, 103, 111, 119, 127, 135, 143,
+        151, 159, 167, 175, 183, 191, 199, 207, 215, 223, 231, 239, 247, 255,
+        327, 335]
+  @fetch_high_bg_tile_byte_cycles [8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144,
+        152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240, 248, 256,
+        328, 336]
+  @set_hori_v_cycles 257
+  @set_vert_v_cycles [280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292,
+        293, 294, 295, 296, 297, 298, 299, 300, 301, 302, 303, 304]
 
+  def cycle_jump_table(cycle) when cycle in @open_nt_byte_cycles do
+    open_nt_byte()
   end
+
+  def cycle_jump_table(cycle) when cycle in @fetch_nt_byte_cycles do
+    fetch_nt_byte()
+  end
+
+  def cycle_jump_table(cycle) when cycle in @open_at_byte_cycles do
+    open_at_byte()
+  end
+
+  def cycle_jump_table(cycle) when cycle in @fetch_at_byte_cycles do
+    fetch_at_byte()
+  end
+
+  def cycle_jump_table(cycle) when cycle in @open_low_bg_tile_byte_cycles do
+    open_low_bg_tile_byte()
+  end
+
+  def cycle_jump_table(cycle) when cycle in @fetch_low_bg_tile_byte_cycles do
+    fetch_low_bg_tile_byte()
+  end
+
+  def cycle_jump_table(cycle) when cycle in @open_high_bg_tile_byte_cycles do
+    open_high_bg_tile_byte()
+  end
+
+  def cycle_jump_table(cycle) when cycle in @fetch_high_bg_tile_byte_cycles do
+    fetch_high_bg_tile_byte()
+  end
+
+  def cycle_jump_table(@set_hori_v_cycles), do: set_hori_v()
+
+  def cycle_jump_table(cycle) when cycle in @set_vert_v_cycles do
+    set_vert_v()
+  end
+
+  def cycle_jump_table(_), do: :ok
 
   def render_visible_scanline do
+    fetch_background()
 
+    %{
+      cycle: cycle
+    } = get_state()
+
+    cycle_jump_table(cycle)
+
+    %{
+      cycle: cycle,
+      scanline: scanline,
+      registers: %{status: status} = registers,
+      colors: colors
+    } = get_state()
+
+    if cycle >= 1 && cycle <= 256 do
+      {bg_pixel, bg_index} = render_background()
+
+      %{
+        sprite_pixel: sprite_pixel,
+        sprite_index: sprite_index,
+        sprite_priority: sprite_priority,
+        sprite_zero: sprite_zero
+      } = render_sprites()
+
+      color = priority_multiplexer(bg_pixel, bg_index, sprite_pixel, sprite_index, sprite_priority)
+
+      status = 
+        if scanline != 0 && sprite_zero && bg_index != 0 && sprite_index != 0 &&
+          (cycle > 8 || (mask?(@show_background_left) && mask?(@show_sprites_left))) &&
+            cycle < 256 && (mask?(@show_background) && mask?(@show_sprites)) do
+          status ||| (@sprite_0_hit &&& 0xFF)
+        else
+          status
+        end
+
+      case scanline >= @first_visible_scanline && scanline <= @last_visible_scanline do
+        true ->
+          List.update_at(colors, (scanline <<< 8) + (cycle - 1), fn _ -> color end)
+      end
+
+      status = 
+        if OAM.sprite_evaluation(scanline, cycle, controller(@sprite_size)) do
+          status ||| (@sprite_overflow &&& 0xFF)
+        else
+          status
+        end
+
+      registers = %{registers | status: status}
+      set_state(%{get_state() | registers: registers, colors: colors})
+    end
+
+    fetch_sprites()
   end
 
   def execute do
-  
+    %{
+      scanline: scanline,
+      registers: %{status: status},
+      pre_render_scanline: pre_render_scanline,
+      frame: frame,
+      cycle: cycle,
+      num_scanlines: num_scanlines,
+      colors: colors,
+      region: region
+    } = get_state()
+
+    cond do
+      (scanline >= @first_visible_scanline && scanline <= @last_visible_scanline) || scanline == pre_render_scanline ->
+
+        status =
+          if cycle == 0 && scanline == pre_render_scanline do
+            status &&& ~~~((@vblank_started ||| @sprite_0_hit ||| @sprite_overflow) &&& 0xFF)
+          else
+            status
+          end
+
+        case rendering?() do
+          true ->
+            render_visible_scanline()
+
+            cycle = 
+              if region != :pal && (frame &&& 0x01) == 0x01 && scanline == pre_render_scanline && cycle == 339 do
+                cycle + 1
+              else
+                cycle
+              end
+        end
+      true ->
+
+        case scanline == @start_nmi_scanline && cycle == 1 do
+          true ->
+            status = status ||| (@vblank_started &&& 0xFF)
+
+            if status?(@vblank_started) && controller(@nmi_on_vblank) != 0 do
+              # TODO: INTERRUPT
+            end
+        end
+    end
+
+    cycle = cycle + 1
+    return_colors = List.duplicate(0x00, @frame_size)
+
+    case cycle == @cycles_per_scanline do
+      true ->
+
+        scanline = scanline + 1
+
+        case scanline == @num_scanlines do
+          true ->
+            case rendering?() do
+              true ->
+                return_colors = colors
+            end
+
+            scanline = 0
+            frame = frame + 1
+        end
+    end
+
+    set_state(%{get_state() | cycle: cycle, scanline: scanline, frame: frame})
   end
 
   def get_pattern_tables do
