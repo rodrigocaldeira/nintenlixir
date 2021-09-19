@@ -2,9 +2,9 @@ defmodule Nintenlixir.PPU.RP2C02 do
   use GenServer
   use Bitwise
 
-  @horizontal_mirroring 0
-  @vertical_mirroring 1
-  @four_screen_mirroring 2
+  # @horizontal_mirroring 0
+  # @vertical_mirroring 1
+  # @four_screen_mirroring 2
 
   @base_name_table_address 1
   @vram_address_increment 4
@@ -13,14 +13,14 @@ defmodule Nintenlixir.PPU.RP2C02 do
   @sprite_size 32
   @nmi_on_vblank 128
 
-  @gray_scale 1
+  # @gray_scale 1
   @show_background_left 2
   @show_sprites_left 4
   @show_background 8
   @show_sprites 16
-  @intensify_reds 32
-  @intensify_greens 64
-  @intensify_blues 128
+  # @intensify_reds 32
+  # @intensify_greens 64
+  # @intensify_blues 128
   
   @sprite_overflow 32
   @sprite_0_hit 64
@@ -52,13 +52,12 @@ defmodule Nintenlixir.PPU.RP2C02 do
   @frame_size 0xF000
 
   @memory_name :memory_ppu
-  @oam_basic_memory_bame :oam_basic_memory_ppu
-  @oam_buffer_name :oam_buffer_ppu
 
   alias Nintenlixir.Memory
   alias Nintenlixir.PPU.OAM
   alias Nintenlixir.PPU.NameTableMapper
-  alias Nintenlixir.CPU.MOS6502
+  # alias Nintenlixir.CPU.MOS6502
+  alias Nintenlixir.PPU.PPUMapper
 
   def start_link(_) do
     GenServer.start_link(__MODULE__, new_ppu(), name: __MODULE__)
@@ -103,12 +102,73 @@ defmodule Nintenlixir.PPU.RP2C02 do
   end
 
   def trigger_scanline_counter do
+    %{
+      scanline: scanline,
+      cycle: cycle
+    } = get_state()
 
+    if scanline >= @first_visible_scanline && scanline <= @last_visible_scanline && rendering?() do
+      sprite_address = controller(@sprite_pattern_address)
+      bg_address = controller(@background_pattern_address)
+
+      cycle == 262 &&& bg_address == 0x0000 && sprite_address == 0x1000
+    else
+      false
+    end
   end
 
   def reset do
+    set_state(%{get_state() | 
+      registers: new_registers(),
+      latch: false,
+      frame: 0x00,
+      cycle: 0x00,
+      scanline: @powerup_scanline
+    })
 
+    Memory.reset(@memory_name)
+
+    start_memory()
   end
+
+  def start_memory do
+    mirrors1 = 
+      Enum.map(0x3000..0x3EFF, fn address ->
+        {address, address - 0x1000}
+      end)
+      |> Map.new()
+
+    mirrors2 = 
+      Enum.map([0x3F10, 0x3F14, 0x3F18, 0x3F1C], fn address ->
+        {address, address - 0x0010}
+      end)
+      |> Map.new()
+
+    mirrors3 = 
+      Enum.map(0x3F20..0x3FFF, fn address ->
+        {address, 0x3F00 + (address &&& 0x001F)}
+      end)
+      |> Map.new()
+
+    mirrors = 
+      mirrors1
+      |> Map.merge(mirrors2)
+      |> Map.merge(mirrors3)
+
+    Memory.set_mirrors(@memory_name, mirrors)
+
+    name_table_mapper = %NameTableMapper{}
+    Memory.add_mapper(@memory_name, name_table_mapper, :ppu)
+
+    ppu_mapper = %PPUMapper{}
+    Memory.add_mapper(@memory_name, ppu_mapper, :ppu)
+  end
+
+  def define_interrupt(interrupt) do
+    set_state(%{get_state() | interrupt: interrupt})
+  end
+
+  def vblank_started, do: @vblank_started
 
   def controller(flag) do
     %{registers: %{controller: controller_register}} = get_state()
@@ -118,13 +178,13 @@ defmodule Nintenlixir.PPU.RP2C02 do
       @base_name_table_address ->
         0x2000 ||| ((controller_register &&& 0x03) <<< 10)
 
-      @vram_address_incremet ->
+      @vram_address_increment ->
         case bit do
           0 -> 1
           _ -> 32
         end
 
-      @sprite_patter_address ->
+      @sprite_pattern_address ->
         case bit do
           0 -> 0x0000
           _ -> 0x1000
@@ -142,7 +202,7 @@ defmodule Nintenlixir.PPU.RP2C02 do
           _ -> 16
         end
 
-      @nmi_ov_vblank ->
+      @nmi_on_vblank ->
         case bit do
           0 -> 0
           _ -> 1
@@ -215,17 +275,17 @@ defmodule Nintenlixir.PPU.RP2C02 do
     sprite_data &&& 0xFF
   end
 
-  # TODO: MEMORY MAPPER
-  def mappings do
-
+  def define_mappings(processor) do
+    ppu_mapper = %PPUMapper{}
+    :ok = Memory.add_mapper(@memory_name, ppu_mapper, processor)
   end
 
   def read(address) do
-
+    Memory.read(@memory_name, address)
   end
 
   def write(address, data) do
-
+    Memory.write(@memory_name, address, data)
   end
 
   def transfer_x do
@@ -347,7 +407,6 @@ defmodule Nintenlixir.PPU.RP2C02 do
   def fetch_background do
     %{
       cycle: cycle,
-      attribute_latch: attribute_latch,
       attribute_next: attribute_next,
       attributes: attributes,
       tiles_low: tiles_low,
@@ -360,17 +419,33 @@ defmodule Nintenlixir.PPU.RP2C02 do
 
     case cycle &&& 0x07 do
       0x01 ->
-        attribute_latch = attribute_next <<< 2
-        bg_attribute = attributes &&& 0xFFFF
+        attribute_latch = (attribute_next <<< 2)
+        bg_attribute = (attributes &&& 0xFFFF)
 
-        Enum.each([0.15], fn i -> 
+        Enum.reduce(0..15, %{
+          tiles_low: tiles_low, 
+          tiles_high: tiles_high}, fn i, %{tiles_low: tiles_low, tiles_high: tiles_high} -> 
           bg_index = 0
 
+          %{
+            bg_attribute: bg_attribute,
+            tiles_low: tiles_low,
+            tiles_high: tiles_high
+          } = 
           case i do
             8 ->
-              bg_attribute = attribute_latch &&& 0xFFFF
-              tiles_low = tiles_latch_low
-              tiles_high = tiles_latch_high
+              %{
+                bg_attribute: attribute_latch &&& 0xFFFF,
+                tiles_low: tiles_latch_low,
+                tiles_high: tiles_latch_high
+              }
+
+            _ ->
+              %{
+                bg_attribute: bg_attribute,
+                tiles_low: tiles_low,
+                tiles_high: tiles_high
+              }
           end
 
           bg_index = 
@@ -385,7 +460,6 @@ defmodule Nintenlixir.PPU.RP2C02 do
               _ -> bg_index ||| 1
             end
 
-          tile_data = 
             List.update_at(tile_data, i, fn tile ->
               %{tile | 
                 pixel: Enum.at(palette, 0x3F1F &&& (bg_attribute ||| bg_index)),
@@ -395,6 +469,8 @@ defmodule Nintenlixir.PPU.RP2C02 do
 
             tiles_low = tiles_low <<< 1
             tiles_high = tiles_high <<< 1
+
+            %{tiles_low: tiles_low, tiles_high: tiles_high}
         end)
 
         tiles_low = tiles_latch_low
@@ -455,7 +531,12 @@ defmodule Nintenlixir.PPU.RP2C02 do
 
         tile_data = List.duplicate(%{pixel: 0x00, index: 0x00}, 8)
 
-        Enum.map([0..7], fn i ->
+        Enum.reduce(0..7, %{
+          temp_tile_low: temp_tile_low,
+          temp_tile_high: temp_tile_high}, fn i, %{
+            temp_tile_low: temp_tile_low,
+            temp_tile_high: temp_tile_high
+          } ->
           high = temp_tile_high &&& 0x80
           low = temp_tile_low &&& 0x80
 
@@ -470,6 +551,7 @@ defmodule Nintenlixir.PPU.RP2C02 do
 
           temp_tile_low = temp_tile_low <<< 1
           temp_tile_high = temp_tile_high <<< 1
+          %{temp_tile_low: temp_tile_low, temp_tile_high: temp_tile_high}
         end)
 
         List.update_at(sprites, index, fn s ->
@@ -527,7 +609,7 @@ defmodule Nintenlixir.PPU.RP2C02 do
     address = 
       case controller(@sprite_size) do
         8 ->
-          controller(@sprite_pattern_address) ||| ((sprite(sprite_data, @time_number) &&& 0xFFFF) <<< 4)
+          controller(@sprite_pattern_address) ||| ((sprite(sprite_data, @tile_number) &&& 0xFFFF) <<< 4)
 
         16 ->
           ((sprite(sprite_data, @tile_bank) &&& 0xFFFF) <<< 12) |||
@@ -544,14 +626,18 @@ defmodule Nintenlixir.PPU.RP2C02 do
       show_sprites: show_sprites,
       palette: palette
     } = get_state()
+  
+    bg_index = 
+      case show_background do
+        true -> bg_index
+        false -> 0
+      end
 
-    case show_background do
-      false -> bg_index = 0
-    end
-
-    case show_sprites do
-      false -> sprite_index = 0
-    end
+    sprite_index =
+      case show_sprites do
+        true -> sprite_index
+        false -> 0
+      end
 
     case bg_index do
       0 ->
@@ -870,63 +956,82 @@ defmodule Nintenlixir.PPU.RP2C02 do
       cycle: cycle,
       num_scanlines: num_scanlines,
       colors: colors,
-      region: region
+      region: region,
+      interrupt: interrupt
     } = get_state()
 
-    cond do
-      (scanline >= @first_visible_scanline && scanline <= @last_visible_scanline) || scanline == pre_render_scanline ->
+    {return_cycle, return_status} = 
+      cond do
+        (scanline >= @first_visible_scanline && scanline <= @last_visible_scanline) || scanline == pre_render_scanline ->
 
-        status =
-          if cycle == 0 && scanline == pre_render_scanline do
-            status &&& ~~~((@vblank_started ||| @sprite_0_hit ||| @sprite_overflow) &&& 0xFF)
-          else
-            status
-          end
-
-        case rendering?() do
-          true ->
-            render_visible_scanline()
-
-            cycle = 
-              if region != :pal && (frame &&& 0x01) == 0x01 && scanline == pre_render_scanline && cycle == 339 do
-                cycle + 1
-              else
-                cycle
-              end
-        end
-      true ->
-
-        case scanline == @start_nmi_scanline && cycle == 1 do
-          true ->
-            status = status ||| (@vblank_started &&& 0xFF)
-
-            if status?(@vblank_started) && controller(@nmi_on_vblank) != 0 do
-              # TODO: INTERRUPT
+          return_status =
+            if cycle == 0 && scanline == pre_render_scanline do
+              status &&& ~~~((@vblank_started ||| @sprite_0_hit ||| @sprite_overflow) &&& 0xFF)
+            else
+              status
             end
-        end
-    end
 
-    cycle = cycle + 1
-    return_colors = List.duplicate(0x00, @frame_size)
-
-    case cycle == @cycles_per_scanline do
-      true ->
-
-        scanline = scanline + 1
-
-        case scanline == @num_scanlines do
-          true ->
+          return_cycle = 
             case rendering?() do
               true ->
-                return_colors = colors
+                render_visible_scanline()
+
+                case region != :pal && (frame &&& 0x01) == 0x01 && scanline == pre_render_scanline && cycle == 339 do
+                  true -> cycle + 1
+                  false -> cycle
+                end
+
+              false -> cycle
+            end
+          {return_cycle, return_status}
+        true ->
+
+          return_status = 
+            case scanline == @start_nmi_scanline && cycle == 1 do
+              true ->
+                if status?(@vblank_started) && controller(@nmi_on_vblank) != 0 do
+                  interrupt.()
+                end
+
+                status ||| (@vblank_started &&& 0xFF)
             end
 
-            scanline = 0
-            frame = frame + 1
-        end
-    end
+            {cycle, return_status}
+      end
 
-    set_state(%{get_state() | cycle: cycle, scanline: scanline, frame: frame})
+    cycle = return_cycle + 1
+
+    {frame, scanline, return_colors} = 
+      case cycle == @cycles_per_scanline do
+        true ->
+
+          scanline = scanline + 1
+
+          case scanline == num_scanlines do
+            true ->
+
+              return_colors = 
+                case rendering?() do
+                  true -> colors
+                  false -> List.duplicate(0x00, @frame_size)
+                end
+
+              scanline = 0
+              frame = frame + 1
+
+              {frame, scanline, return_colors}
+
+            false -> {frame, scanline, List.duplicate(0x00, @frame_size)}
+
+          end
+
+        _ ->
+          {frame, scanline, List.duplicate(0x00, @frame_size)}
+      end
+
+    set_state(%{get_state() | cycle: cycle, scanline: scanline, frame: frame, status: return_status})
+
+    return_colors
   end
 
   def get_pattern_tables do
@@ -952,6 +1057,8 @@ defmodule Nintenlixir.PPU.RP2C02 do
   # Helpers
 
   defp new_ppu do
+    start_memory()
+
     %{
       colors: List.duplicate(0x00, @frame_size),
       show_background: true,
@@ -959,15 +1066,7 @@ defmodule Nintenlixir.PPU.RP2C02 do
       frame: 0x0000,
       scanline: 0x0000,
       cycle: 0x0000,
-      registers: %{
-        controller: 0x00,
-        mask: 0x00,
-        status: 0x00,
-        oam_address: 0x00,
-        scroll: 0x00,
-        address: 0x00,
-        data: 0x00
-      },
+      registers: new_registers(),
       palette: List.duplicate(0x00, 32),
       latch: false,
       latch_address: 0x0000,
@@ -994,7 +1093,20 @@ defmodule Nintenlixir.PPU.RP2C02 do
       }, 8),
       region: :pal,
       num_scanlines: 0x0000,
-      pre_render_scanline: 0x0000
+      pre_render_scanline: 0x0000,
+      interrupt: fn -> :ok end
+    }
+  end
+
+  def new_registers do
+    %{
+      controller: 0x00,
+      mask: 0x00,
+      status: 0x00,
+      oam_address: 0x00,
+      scroll: 0x00,
+      address: 0x00,
+      data: 0x00
     }
   end
 end
