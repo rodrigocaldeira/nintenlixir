@@ -8,7 +8,7 @@ defmodule Nintenlixir.PPU.PPUMapper do
   alias Nintenlixir.PPU.RP2C02
   alias Nintenlixir.PPU.OAM
 
-  def read(address) when address in [0x2001..0x2007] do
+  def read(address) when address in 0x2001..0x2007 do
     case address do
       0x2001 ->
         %{latch_value: latch_value} = RP2C02.get_state()
@@ -77,6 +77,26 @@ defmodule Nintenlixir.PPU.PPUMapper do
     end
   end
 
+  def write(address, data) do
+    RP2C02.set_state(%{RP2C02.get_state() | latch_value: data})
+
+    case address do
+      0x2000 ->
+        %{
+          registers: registers,
+          latch_address: latch_address
+        } = RP2C02.get_state()
+        registers = %{registers | controller: data}
+        latch_address = (latch_address &&& 0x73FF) ||| ((data &&& 0x03) <<< 10)
+        RP2C02.set_state(%{RP2C02.get_state() | registers: registers, latch_address: latch_address})
+
+      0x2001 ->
+        %{registers: registers} = RP2C02.get_state()
+        registers = %{registers | mask: data}
+        RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+    end
+  end
+
   # Mapper
 
   defimpl Mapper, for: PPUMapper do
@@ -90,6 +110,7 @@ defmodule Nintenlixir.PPU.PPUMapper do
     end
 
     def write(_mapper, address, data, _memory) do
+      IO.inspect("SUSSE, PELO MENOS PASSOU AQUI")
       PPUMapper.write(address, data)
     end
 
