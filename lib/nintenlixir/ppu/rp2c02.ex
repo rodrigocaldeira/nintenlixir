@@ -248,7 +248,7 @@ defmodule Nintenlixir.PPU.RP2C02 do
   def sprite(sprite_data, @tile_number) do
     value = ((sprite_data &&& 0x00FF0000) >>> 16) &&& 0xFF
 
-    if controller(@tile_number) == 16 do
+    if controller(@sprite_size) == 16 do
       value >>> 1
     else
       value
@@ -324,7 +324,7 @@ defmodule Nintenlixir.PPU.RP2C02 do
     address_register = 
       case (address_register &&& 0x001F) do
         0x001F ->
-          address_register &&& 0x041F
+          bxor(0x041F, address_register)
 
         _ ->
           address_register + 1
@@ -345,16 +345,17 @@ defmodule Nintenlixir.PPU.RP2C02 do
       if (address_register &&& 0x7000) != 0x7000 do
         address_register + 0x1000
       else
+        new_address_register = address_register &&& 0x0FFF
 
-        case (address_register &&& 0x03E0) do
+        case (new_address_register &&& 0x03E0) do
           0x03A0 ->
-            bxor(address_register, 0x0BA0)
+            bxor(new_address_register, 0x0BA0)
           
           0x03E0 ->
-            bxor(address_register, 0x03E0)
+            bxor(new_address_register, 0x03E0)
 
           _ ->
-            address_register + 0x0020
+            new_address_register + 0x0020
         end
       end
     

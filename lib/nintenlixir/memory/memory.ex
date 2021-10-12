@@ -182,7 +182,7 @@ defmodule Nintenlixir.Memory do
         address
 
       mapped_address ->
-        mapped_address
+        retrieve_mirrored_address(mapped_address, mirrors)
     end
   end
 end

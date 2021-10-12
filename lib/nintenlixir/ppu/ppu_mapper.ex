@@ -7,6 +7,7 @@ defmodule Nintenlixir.PPU.PPUMapper do
   alias __MODULE__
   alias Nintenlixir.PPU.RP2C02
   alias Nintenlixir.PPU.OAM
+  alias Nintenlixir.Memory
 
   def read(address) when address in 0x2001..0x2007 do
     case address do
@@ -56,31 +57,27 @@ defmodule Nintenlixir.PPU.PPUMapper do
 
         RP2C02.increment_address()
 
-        {:ok, return_value}
+        return_value
 
-      _ ->
-        {:ok, 0x00}
+      _ -> 0x00
     end
   end
 
   def read(address) do
-    address &&& 0x3F00
-    |> case do
+    case address &&& 0x3F00 do
       0x3F00 ->
         %{palette: palette} = RP2C02.get_state()
         index = address &&& 0x001F
-        return_value = Enum.at(palette, index)
-        {:ok, return_value}
+        Enum.at(palette, index)
 
-      _ ->
-        {:ok, 0x00}
+      _ -> 0x00
     end
   end
 
-  def write(address, data) do
+  def write(write_address, data) do
     RP2C02.set_state(%{RP2C02.get_state() | latch_value: data})
 
-    case address do
+    case write_address do
       0x2000 ->
         %{
           registers: registers,
@@ -94,6 +91,74 @@ defmodule Nintenlixir.PPU.PPUMapper do
         %{registers: registers} = RP2C02.get_state()
         registers = %{registers | mask: data}
         RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+      0x2003 ->
+        %{registers: registers} = RP2C02.get_state()
+        registers = %{registers | oam_address: data} 
+        RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+      0x2004 ->
+        %{registers: %{oam_address: oam_address} = registers} = RP2C02.get_state()
+        :ok = OAM.write(oam_address, data)
+        registers = %{registers | oam_address: oam_address + 1} 
+        RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+      0x2005 ->
+        %{
+          latch: latch,
+          latch_address: latch_address,
+          registers: registers
+        } = RP2C02.get_state()
+
+        if !latch do
+          new_address = (latch_address &&& 0x7FE0) ||| ((data >>> 3) &&& 0xFFFF)
+          registers = %{registers | scroll: ((data &&& 0x07) &&& 0xFFFF)}
+          RP2C02.set_state(%{RP2C02.get_state() | registers: registers, latch_address: new_address})
+        else
+          RP2C02.set_state(%{RP2C02.get_state() |
+            latch_address: (latch_address &&& 0x0C1F) ||| (((data &&& 0xFFFF) <<< 2) ||| (((data &&& 0xFFFF) <<< 12) &&& 0x73E0)
+            )
+          })
+        end
+
+        RP2C02.set_state(%{RP2C02.get_state() | latch: !latch})
+
+      0x2006 ->
+        %{
+          latch: latch,
+          latch_address: latch_address,
+          registers: registers
+        } = RP2C02.get_state()
+
+        if !latch do
+          RP2C02.set_state(%{RP2C02.get_state() |
+            latch_address: (latch_address &&& 0x00FF) ||| (((data &&& 0x3F) &&& 0xFFFF) <<< 8)
+          })
+        else
+          new_address = (latch_address &&& 0x7F00) ||| (data &&& 0xFFFF)
+          registers = %{registers | address: new_address}
+          RP2C02.set_state(%{RP2C02.get_state() |
+            registers: registers,
+            latch_address: new_address
+          })
+        end
+
+        RP2C02.set_state(%{RP2C02.get_state() | latch: !latch})
+
+      0x2007 ->
+        %{registers: %{address: address}} = RP2C02.get_state()
+        Memory.write(:memory_ppu, address &&& 0x3FFF, data)
+        RP2C02.increment_address()
+
+      _ -> :ok
+    end
+
+    if (write_address &&& 0x3F00) == 0x3F00 do
+      index = write_address &&& 0x001F
+      %{palette: palette} = RP2C02.get_state()
+      palette = List.replace_at(palette, index, data)
+      RP2C02.set_state(%{RP2C02.get_state() | palette: palette})
+
     end
   end
 
@@ -110,7 +175,6 @@ defmodule Nintenlixir.PPU.PPUMapper do
     end
 
     def write(_mapper, address, data, _memory) do
-      IO.inspect("SUSSE, PELO MENOS PASSOU AQUI")
       PPUMapper.write(address, data)
     end
 

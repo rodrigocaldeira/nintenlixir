@@ -21,6 +21,7 @@ defmodule Nintenlixir.PPU.RP2C02Test do
     start_supervised(NameTableMapper)
     start_supervised(MOS6502)
     start_supervised!(RP2C02)
+    RP2C02.set_region(:ntsc)
     :ok
   end
 
@@ -54,7 +55,6 @@ defmodule Nintenlixir.PPU.RP2C02Test do
   end
 
   test "RP2C02.controller/1" do
-    assert :ok = RP2C02.set_region(:ntsc)
     %{
       registers: registers
     } = state = RP2C02.get_state()
@@ -119,7 +119,6 @@ defmodule Nintenlixir.PPU.RP2C02Test do
   end
 
   test "RP2C02.mask/1" do
-    assert :ok = RP2C02.set_region(:ntsc)
     %{
       registers: registers
     } = state = RP2C02.get_state()
@@ -137,7 +136,6 @@ defmodule Nintenlixir.PPU.RP2C02Test do
   end
 
   test "RP2C02.status/1" do
-    assert :ok = RP2C02.set_region(:ntsc)
     %{registers: registers} = RP2C02.get_state()
     registers = %{registers | status: 0xFF}
     RP2C02.set_state(%{
@@ -157,5 +155,412 @@ defmodule Nintenlixir.PPU.RP2C02Test do
       RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
       assert RP2C02.status?(data)
     end)
+  end
+
+  test "RP2C02.address/1" do
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x00}
+    RP2C02.set_state(%{
+      RP2C02.get_state() | 
+      registers: registers
+    })
+
+    PPUMapper.write(0x2006, 0xFF)
+    PPUMapper.write(0x2006, 0xFF)
+    assert %{registers: %{address: 0x3FFF}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x00}
+    RP2C02.set_state(%{
+      RP2C02.get_state() | 
+      registers: registers
+    })
+
+    assert 0x0000 == RP2C02.fetch_address(1)
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0xFFFF}
+    RP2C02.set_state(%{
+      RP2C02.get_state() | 
+      registers: registers
+    })
+
+    assert 0x001F == RP2C02.fetch_address(1)
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x00}
+    RP2C02.set_state(%{
+      RP2C02.get_state() | 
+      registers: registers
+    })
+
+    assert 0x0000 == RP2C02.fetch_address(32)
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0xFFFF}
+    RP2C02.set_state(%{
+      RP2C02.get_state() | 
+      registers: registers
+    })
+
+    assert 0x001F == RP2C02.fetch_address(32)
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x00}
+    RP2C02.set_state(%{
+      RP2C02.get_state() | 
+      registers: registers
+    })
+
+    assert 0x0000 == RP2C02.fetch_address(1024)
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0xFFFF}
+    RP2C02.set_state(%{
+      RP2C02.get_state() | 
+      registers: registers
+    })
+
+    assert 0x0003 == RP2C02.fetch_address(1024)
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x00}
+    RP2C02.set_state(%{
+      RP2C02.get_state() | 
+      registers: registers
+    })
+
+    assert 0x0000 == RP2C02.fetch_address(4096)
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0xFFFF}
+    RP2C02.set_state(%{
+      RP2C02.get_state() | 
+      registers: registers
+    })
+
+    assert 0x0007 == RP2C02.fetch_address(4096)
+  end
+
+  test "RP2C02.sprite/2" do
+    assert 0x00 = RP2C02.sprite(0x00000000, 1) 
+    assert 0xFF = RP2C02.sprite(0xFFFFFFFF, 1) 
+
+    assert 0x00 = RP2C02.sprite(0x00000000, 256) 
+    assert 0x01 = RP2C02.sprite(0xFFFFFFFF, 256) 
+
+    assert 0x00 = RP2C02.sprite(0x00000000, 512)
+    assert 0xFF = RP2C02.sprite(0xFFFFFFFF, 512)
+
+    assert 0x00 = RP2C02.sprite(0x00000000, 65536)
+    assert 0x03 = RP2C02.sprite(0xFFFFFFFF, 65536) 
+
+    assert 0x00 = RP2C02.sprite(0x00000000, 2097152)
+    assert 0x01 = RP2C02.sprite(0xFFFFFFFF, 2097152) 
+
+    assert 0x00 = RP2C02.sprite(0x00000000, 4194304)
+    assert 0x01 = RP2C02.sprite(0xFFFFFFFF, 4194304) 
+    
+    assert 0x00 = RP2C02.sprite(0x00000000, 8388608)
+    assert 0x01 = RP2C02.sprite(0xFFFFFFFF, 8388608) 
+
+    assert 0x00 = RP2C02.sprite(0x00000000, 16777216)
+    assert 0xFF = RP2C02.sprite(0xFFFFFFFF, 16777216) 
+  end
+
+  test "PPUMapper.store/2 with 0x2003 address" do
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | oam_address: 0x00}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    PPUMapper.write(0x2003, 0xFF)
+
+    assert %{registers: %{oam_address: 0xFF}} = RP2C02.get_state()
+  end
+
+  test "PPUMapper.store/2 with 0x2004 address" do
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | oam_address: 0x00}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    Enum.each(0x0000..0x00FF, fn data ->
+      PPUMapper.write(0x2004, data)
+    end)
+
+    Enum.each(0x0000..0x00FF, fn data ->
+      assert {:ok, ^data} = OAM.read(data)
+    end)
+  end
+
+  test "Palette Mirroring" do
+    Enum.each([0x3F10, 0x3F14, 0x3F18, 0x3F1C], fn address ->
+      Memory.write(@memory_name, address - 0x0010, 0xFF)
+
+      assert {:ok, 0xFF} = Memory.read(@memory_name, address)
+
+      Memory.write(@memory_name, address - 0x0010, 0x00)
+      Memory.write(@memory_name, address, 0xFF)
+
+      assert {:ok, 0xFF} = Memory.read(@memory_name, address - 0x0010)
+    end)
+
+    Enum.each(0x3F20..0x3FFF, fn address ->
+      Memory.write(@memory_name, address - 0x0020, 0xFF)
+      assert {:ok, 0xFF} = Memory.read(@memory_name, address)
+
+      Memory.write(@memory_name, address - 0x0020, 0x00)
+      Memory.write(@memory_name, address, 0xFF)
+
+      assert {:ok, 0xFF} = Memory.read(@memory_name, address - 0x0020)
+    end)
+  end
+
+  test "Address fetch and store logic" do
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x00}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    PPUMapper.read(0x2002)
+    PPUMapper.write(0x2006, 0x3F)
+    PPUMapper.write(0x2006, 0xFF)
+    
+    assert %{registers: %{address: 0x3FFF}} = RP2C02.get_state()
+
+    PPUMapper.read(0x2002)
+    PPUMapper.write(0x2006, 0x01)
+    PPUMapper.write(0x2006, 0x01)
+    
+    assert %{registers: %{address: 0x0101}} = RP2C02.get_state()
+  end
+
+  test "Data increment 1" do
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x00}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    PPUMapper.read(0x2002)
+    PPUMapper.write(0x2006, 0x01)
+    PPUMapper.write(0x2006, 0x00)
+
+    assert %{registers: %{address: 0x0100}} = RP2C02.get_state()
+
+    PPUMapper.write(0x2007, 0xFF)
+    PPUMapper.write(0x2007, 0xFF)
+    PPUMapper.write(0x2007, 0xFF)
+
+    assert {:ok, 0xFF} = Memory.read(:memory_ppu, 0x0100)
+    assert {:ok, 0xFF} = Memory.read(:memory_ppu, 0x0101)
+    assert {:ok, 0xFF} = Memory.read(:memory_ppu, 0x0102)
+    assert %{registers: %{address: 0x0103}} = RP2C02.get_state()
+
+    Memory.write(:memory_ppu, 0x0103, 0xFF)
+    PPUMapper.read(0x2007)
+    assert {:ok, 0xFF} = PPUMapper.read(0x2007)
+    assert %{registers: %{address: 0x0105}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x0000}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    PPUMapper.read(0x2002)
+    PPUMapper.write(0x2006, 0x3F)
+    PPUMapper.write(0x2006, 0x00)
+    assert %{registers: %{address: 0x3F00}} = RP2C02.get_state()
+
+    Memory.write(:memory_ppu, 0x3F00, 0xFF)
+    Memory.write(:memory_ppu, 0x3F01, 0xFF)
+    Memory.write(:memory_ppu, 0x3F02, 0xFF)
+
+    assert {:ok, 0xFF} = PPUMapper.read(0x2007)
+    assert %{registers: %{address: 0x3F01}} = RP2C02.get_state()
+  end
+
+  test "Data increment 32" do
+    PPUMapper.write(0x2000, 0x04)
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x00}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+    PPUMapper.read(0x2002)
+
+    PPUMapper.write(0x2006, 0x01)
+    PPUMapper.write(0x2006, 0x00)
+
+    assert %{registers: %{address: 0x0100}} = RP2C02.get_state()
+
+    PPUMapper.write(0x2007, 0xFF)
+    PPUMapper.write(0x2007, 0xFF)
+    PPUMapper.write(0x2007, 0xFF)
+
+    assert {:ok, 0xFF} = Memory.read(:memory_ppu, 0x0100)
+    assert {:ok, 0xFF} = Memory.read(:memory_ppu, 0x0120)
+    assert {:ok, 0xFF} = Memory.read(:memory_ppu, 0x0140)
+  end
+
+  test "RP2C02.increment_x/0" do
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x00}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    RP2C02.increment_x()
+
+    assert %{registers: %{address: 0x0001}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x1E}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    RP2C02.increment_x()
+
+    assert %{registers: %{address: 0x001F}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x001F}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    RP2C02.increment_x()
+
+    assert %{registers: %{address: 0x0400}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x041F}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    RP2C02.increment_x()
+
+    assert %{registers: %{address: 0x0000}} = RP2C02.get_state()
+  end
+
+  test "RP2C02.transfer_x/0" do
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x7BE0}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers, latch_address: 0x041F})
+
+    RP2C02.transfer_x()
+
+    assert %{registers: %{address: 0x7FFF}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x7BE0}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers, latch_address: 0xFFFF})
+
+    RP2C02.transfer_x()
+
+    assert %{registers: %{address: 0x7FFF}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0xFFFF}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers, latch_address: 0x0000})
+
+    RP2C02.transfer_x()
+
+    assert %{registers: %{address: 0x7BE0}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x0000}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers, latch_address: 0xFFFF})
+
+    RP2C02.transfer_x()
+
+    assert %{registers: %{address: 0x041F}} = RP2C02.get_state()
+  end
+
+  test "RP2C02.increment_y/0" do
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x0000}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    RP2C02.increment_y()
+
+    assert %{registers: %{address: 0x1000}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x1000}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    RP2C02.increment_y()
+
+    assert %{registers: %{address: 0x2000}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x6000}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    RP2C02.increment_y()
+
+    assert %{registers: %{address: 0x7000}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x7000}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    RP2C02.increment_y()
+
+    assert %{registers: %{address: 0x0020}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x73D0}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    RP2C02.increment_y()
+
+    assert %{registers: %{address: 0x03F0}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x7FA0}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    RP2C02.increment_y()
+
+    assert %{registers: %{address: 0x0400}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x73A0}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    RP2C02.increment_y()
+
+    assert %{registers: %{address: 0x0800}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x73E1}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers})
+
+    RP2C02.increment_y()
+
+    assert %{registers: %{address: 0x0001}} = RP2C02.get_state()
+  end
+
+  test "RP2C02.transfer_y/0" do
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x041F}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers, latch_address: 0x7BE0})
+
+    RP2C02.transfer_y()
+
+    assert %{registers: %{address: 0x7FFF}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x041F}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers, latch_address: 0xFFFF})
+
+    RP2C02.transfer_y()
+
+    assert %{registers: %{address: 0x7FFF}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0xFFFF}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers, latch_address: 0x0000})
+
+    RP2C02.transfer_y()
+
+    assert %{registers: %{address: 0x041F}} = RP2C02.get_state()
+
+    %{registers: registers} = RP2C02.get_state()
+    registers = %{registers | address: 0x0000}
+    RP2C02.set_state(%{RP2C02.get_state() | registers: registers, latch_address: 0xFFFF})
+
+    RP2C02.transfer_y()
+
+    assert %{registers: %{address: 0x7BE0}} = RP2C02.get_state()
   end
 end
