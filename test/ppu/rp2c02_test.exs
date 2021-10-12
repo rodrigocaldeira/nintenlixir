@@ -26,7 +26,7 @@ defmodule Nintenlixir.PPU.RP2C02Test do
   end
 
   test "RP2C02.get_state/0" do
-    RP2C02.get_state() 
+    RP2C02.get_state()
     # |> IO.inspect()
   end
 
@@ -79,9 +79,9 @@ defmodule Nintenlixir.PPU.RP2C02Test do
 
     registers = %{registers | controller: 0xFF}
     RP2C02.set_state(%{state | registers: registers})
-    assert 0x2c00 = RP2C02.controller(1)
+    assert 0x2C00 = RP2C02.controller(1)
 
-    registers = %{registers | controller: ~~~(4) &&& 0xFF}
+    registers = %{registers | controller: ~~~4 &&& 0xFF}
     RP2C02.set_state(%{state | registers: registers})
     assert 1 = RP2C02.controller(4)
 
@@ -93,7 +93,7 @@ defmodule Nintenlixir.PPU.RP2C02Test do
     RP2C02.set_state(%{state | registers: registers})
     assert 0x1000 = RP2C02.controller(8)
 
-    registers = %{registers | controller: ~~~(16) &&& 0xFF}
+    registers = %{registers | controller: ~~~16 &&& 0xFF}
     RP2C02.set_state(%{state | registers: registers})
     assert 0x0000 = RP2C02.controller(16)
 
@@ -101,7 +101,7 @@ defmodule Nintenlixir.PPU.RP2C02Test do
     RP2C02.set_state(%{state | registers: registers})
     assert 0x1000 = RP2C02.controller(16)
 
-    registers = %{registers | controller: ~~~(32) &&& 0xFF}
+    registers = %{registers | controller: ~~~32 &&& 0xFF}
     RP2C02.set_state(%{state | registers: registers})
     assert 8 = RP2C02.controller(32)
 
@@ -109,7 +109,7 @@ defmodule Nintenlixir.PPU.RP2C02Test do
     RP2C02.set_state(%{state | registers: registers})
     assert 16 = RP2C02.controller(32)
 
-    registers = %{registers | controller: ~~~(128) &&& 0xFF}
+    registers = %{registers | controller: ~~~128 &&& 0xFF}
     RP2C02.set_state(%{state | registers: registers})
     assert 0 = RP2C02.controller(128)
 
@@ -138,11 +138,12 @@ defmodule Nintenlixir.PPU.RP2C02Test do
   test "RP2C02.status/1" do
     %{registers: registers} = RP2C02.get_state()
     registers = %{registers | status: 0xFF}
+
     RP2C02.set_state(%{
-      RP2C02.get_state() | 
-      registers: registers,
-      latch: true,
-      latch_value: 0x00
+      RP2C02.get_state()
+      | registers: registers,
+        latch: true,
+        latch_value: 0x00
     })
 
     assert {:ok, 0xE0} = PPUMapper.read(0x2002)
@@ -160,9 +161,10 @@ defmodule Nintenlixir.PPU.RP2C02Test do
   test "RP2C02.address/1" do
     %{registers: registers} = RP2C02.get_state()
     registers = %{registers | address: 0x00}
+
     RP2C02.set_state(%{
-      RP2C02.get_state() | 
-      registers: registers
+      RP2C02.get_state()
+      | registers: registers
     })
 
     PPUMapper.write(0x2006, 0xFF)
@@ -171,101 +173,109 @@ defmodule Nintenlixir.PPU.RP2C02Test do
 
     %{registers: registers} = RP2C02.get_state()
     registers = %{registers | address: 0x00}
+
     RP2C02.set_state(%{
-      RP2C02.get_state() | 
-      registers: registers
+      RP2C02.get_state()
+      | registers: registers
     })
 
     assert 0x0000 == RP2C02.fetch_address(1)
 
     %{registers: registers} = RP2C02.get_state()
     registers = %{registers | address: 0xFFFF}
+
     RP2C02.set_state(%{
-      RP2C02.get_state() | 
-      registers: registers
+      RP2C02.get_state()
+      | registers: registers
     })
 
     assert 0x001F == RP2C02.fetch_address(1)
 
     %{registers: registers} = RP2C02.get_state()
     registers = %{registers | address: 0x00}
+
     RP2C02.set_state(%{
-      RP2C02.get_state() | 
-      registers: registers
+      RP2C02.get_state()
+      | registers: registers
     })
 
     assert 0x0000 == RP2C02.fetch_address(32)
 
     %{registers: registers} = RP2C02.get_state()
     registers = %{registers | address: 0xFFFF}
+
     RP2C02.set_state(%{
-      RP2C02.get_state() | 
-      registers: registers
+      RP2C02.get_state()
+      | registers: registers
     })
 
     assert 0x001F == RP2C02.fetch_address(32)
 
     %{registers: registers} = RP2C02.get_state()
     registers = %{registers | address: 0x00}
+
     RP2C02.set_state(%{
-      RP2C02.get_state() | 
-      registers: registers
+      RP2C02.get_state()
+      | registers: registers
     })
 
     assert 0x0000 == RP2C02.fetch_address(1024)
 
     %{registers: registers} = RP2C02.get_state()
     registers = %{registers | address: 0xFFFF}
+
     RP2C02.set_state(%{
-      RP2C02.get_state() | 
-      registers: registers
+      RP2C02.get_state()
+      | registers: registers
     })
 
     assert 0x0003 == RP2C02.fetch_address(1024)
 
     %{registers: registers} = RP2C02.get_state()
     registers = %{registers | address: 0x00}
+
     RP2C02.set_state(%{
-      RP2C02.get_state() | 
-      registers: registers
+      RP2C02.get_state()
+      | registers: registers
     })
 
     assert 0x0000 == RP2C02.fetch_address(4096)
 
     %{registers: registers} = RP2C02.get_state()
     registers = %{registers | address: 0xFFFF}
+
     RP2C02.set_state(%{
-      RP2C02.get_state() | 
-      registers: registers
+      RP2C02.get_state()
+      | registers: registers
     })
 
     assert 0x0007 == RP2C02.fetch_address(4096)
   end
 
   test "RP2C02.sprite/2" do
-    assert 0x00 = RP2C02.sprite(0x00000000, 1) 
-    assert 0xFF = RP2C02.sprite(0xFFFFFFFF, 1) 
+    assert 0x00 = RP2C02.sprite(0x00000000, 1)
+    assert 0xFF = RP2C02.sprite(0xFFFFFFFF, 1)
 
-    assert 0x00 = RP2C02.sprite(0x00000000, 256) 
-    assert 0x01 = RP2C02.sprite(0xFFFFFFFF, 256) 
+    assert 0x00 = RP2C02.sprite(0x00000000, 256)
+    assert 0x01 = RP2C02.sprite(0xFFFFFFFF, 256)
 
     assert 0x00 = RP2C02.sprite(0x00000000, 512)
     assert 0xFF = RP2C02.sprite(0xFFFFFFFF, 512)
 
     assert 0x00 = RP2C02.sprite(0x00000000, 65536)
-    assert 0x03 = RP2C02.sprite(0xFFFFFFFF, 65536) 
+    assert 0x03 = RP2C02.sprite(0xFFFFFFFF, 65536)
 
-    assert 0x00 = RP2C02.sprite(0x00000000, 2097152)
-    assert 0x01 = RP2C02.sprite(0xFFFFFFFF, 2097152) 
+    assert 0x00 = RP2C02.sprite(0x00000000, 2_097_152)
+    assert 0x01 = RP2C02.sprite(0xFFFFFFFF, 2_097_152)
 
-    assert 0x00 = RP2C02.sprite(0x00000000, 4194304)
-    assert 0x01 = RP2C02.sprite(0xFFFFFFFF, 4194304) 
-    
-    assert 0x00 = RP2C02.sprite(0x00000000, 8388608)
-    assert 0x01 = RP2C02.sprite(0xFFFFFFFF, 8388608) 
+    assert 0x00 = RP2C02.sprite(0x00000000, 4_194_304)
+    assert 0x01 = RP2C02.sprite(0xFFFFFFFF, 4_194_304)
 
-    assert 0x00 = RP2C02.sprite(0x00000000, 16777216)
-    assert 0xFF = RP2C02.sprite(0xFFFFFFFF, 16777216) 
+    assert 0x00 = RP2C02.sprite(0x00000000, 8_388_608)
+    assert 0x01 = RP2C02.sprite(0xFFFFFFFF, 8_388_608)
+
+    assert 0x00 = RP2C02.sprite(0x00000000, 16_777_216)
+    assert 0xFF = RP2C02.sprite(0xFFFFFFFF, 16_777_216)
   end
 
   test "PPUMapper.store/2 with 0x2003 address" do
@@ -323,13 +333,13 @@ defmodule Nintenlixir.PPU.RP2C02Test do
     PPUMapper.read(0x2002)
     PPUMapper.write(0x2006, 0x3F)
     PPUMapper.write(0x2006, 0xFF)
-    
+
     assert %{registers: %{address: 0x3FFF}} = RP2C02.get_state()
 
     PPUMapper.read(0x2002)
     PPUMapper.write(0x2006, 0x01)
     PPUMapper.write(0x2006, 0x01)
-    
+
     assert %{registers: %{address: 0x0101}} = RP2C02.get_state()
   end
 
