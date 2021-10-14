@@ -15,7 +15,20 @@ defmodule Nintenlixir.Application do
         _ ->
           [
             Nintenlixir.CPU.MOS6502,
-            {Nintenlixir.Memory, Nintenlixir.CPU.MOS6502.memory_server_name()}
+            Supervisor.child_spec(
+              {Nintenlixir.Memory, Nintenlixir.CPU.MOS6502.memory_server_name()},
+              id: Nintenlixir.CPU.MOS6502.memory_server_name()
+            ),
+            Supervisor.child_spec(
+              {Nintenlixir.Memory, Nintenlixir.PPU.RP2C02.memory_server_name()},
+              id: Nintenlixir.PPU.RP2C02.memory_server_name()
+            ),
+            Supervisor.child_spec({Nintenlixir.Memory, :oam_basic_memory}, id: :oam_basic_memory),
+            Supervisor.child_spec({Nintenlixir.Memory, :oam_buffer}, id: :oam_buffer),
+            Nintenlixir.PPU.OAM,
+            Nintenlixir.PPU.NameTableMapper,
+            Nintenlixir.PPU.RP2C02,
+            Nintenlixir.ROM
           ]
       end
 

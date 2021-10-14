@@ -1452,4 +1452,6 @@ defmodule Nintenlixir.PPU.RP2C02 do
       data: 0x00
     }
   end
+
+  def memory_server_name, do: @memory_name
 end

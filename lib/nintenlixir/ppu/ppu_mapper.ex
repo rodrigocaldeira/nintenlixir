@@ -191,6 +191,7 @@ defmodule Nintenlixir.PPU.PPUMapper do
 
     def build_mappings(mapper, :cpu) do
       Enum.map(0x2000..0x2007, fn address -> {address, mapper} end)
+      |> Map.new()
     end
 
     def write(_mapper, address, data, _memory) do
