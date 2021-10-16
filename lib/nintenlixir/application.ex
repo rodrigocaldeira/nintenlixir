@@ -28,13 +28,14 @@ defmodule Nintenlixir.Application do
             Nintenlixir.PPU.OAM,
             Nintenlixir.PPU.NameTableMapper,
             Nintenlixir.PPU.RP2C02,
-            Nintenlixir.ROM
+            Nintenlixir.ROM,
+            Nintenlixir.Console
           ]
       end
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Nintenlixir.Supervisor]
+    opts = [strategy: :one_for_all, name: Nintenlixir.Supervisor]
     Supervisor.start_link(children, opts)
   end
 end

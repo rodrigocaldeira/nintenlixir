@@ -13,7 +13,7 @@ defmodule Nintenlixir.PPU.PPUMapper do
     case address do
       0x2001 ->
         %{latch_value: latch_value} = RP2C02.get_state()
-        {:ok, latch_value}
+        latch_value
 
       0x2002 ->
         %{
@@ -26,11 +26,12 @@ defmodule Nintenlixir.PPU.PPUMapper do
         registers = %{registers | status: status &&& bxor(status, RP2C02.vblank_started())}
         RP2C02.set_state(%{RP2C02.get_state() | registers: registers, latch: false})
 
-        {:ok, return_value}
+        return_value
 
       0x2004 ->
         %{registers: %{oam_address: oam_address}} = RP2C02.get_state()
-        OAM.read(oam_address)
+        {:ok, data} = OAM.read(oam_address)
+        data
 
       0x2007 ->
         %{
@@ -44,7 +45,7 @@ defmodule Nintenlixir.PPU.PPUMapper do
         return_value = data
 
         vram_address = address_registers &&& 0x3FFF
-        data = RP2C02.read(vram_address)
+        {:ok, data} = RP2C02.read(vram_address)
 
         return_value =
           if (vram_address &&& 0x3F00) == 0x3F00 do
@@ -194,8 +195,9 @@ defmodule Nintenlixir.PPU.PPUMapper do
       |> Map.new()
     end
 
-    def write(_mapper, address, data, _memory) do
+    def write(_mapper, address, data, memory) do
       PPUMapper.write(address, data)
+      memory
     end
 
     def read(_mapper, address, _memory) do

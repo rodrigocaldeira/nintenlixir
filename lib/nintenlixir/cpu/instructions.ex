@@ -533,6 +533,7 @@ defmodule Nintenlixir.CPU.Instructions do
   @txa 0x8A
   @tya 0x98
   @tsx 0xBA
+  @txs 0x9A
   @pha 0x48
   @php 0x08
   @pla 0x68
@@ -656,6 +657,7 @@ defmodule Nintenlixir.CPU.Instructions do
                     @txa,
                     @tya,
                     @tsx,
+                    @txs,
                     @pha,
                     @php,
                     @pla,
@@ -964,6 +966,7 @@ defmodule Nintenlixir.CPU.Instructions do
   defp single_function(@txa), do: &MOS6502.txa/0
   defp single_function(@tya), do: &MOS6502.tya/0
   defp single_function(@tsx), do: &MOS6502.tsx/0
+  defp single_function(@txs), do: &MOS6502.txs/0
   defp single_function(@pha), do: &MOS6502.pha/0
   defp single_function(@php), do: &MOS6502.php/0
   defp single_function(@pla), do: &MOS6502.pla/0

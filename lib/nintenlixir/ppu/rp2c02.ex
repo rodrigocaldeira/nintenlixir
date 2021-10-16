@@ -1331,6 +1331,9 @@ defmodule Nintenlixir.PPU.RP2C02 do
                 end
 
                 status ||| (@vblank_started &&& 0xFF)
+
+              _ ->
+                status
             end
 
           {cycle, return_status}
@@ -1364,12 +1367,15 @@ defmodule Nintenlixir.PPU.RP2C02 do
           {frame, scanline, List.duplicate(0x00, @frame_size)}
       end
 
+    %{registers: registers} = get_state()
+    registers = %{registers | status: return_status}
+
     set_state(%{
       get_state()
       | cycle: cycle,
         scanline: scanline,
         frame: frame,
-        status: return_status
+        registers: registers
     })
 
     return_colors

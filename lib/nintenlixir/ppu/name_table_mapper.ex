@@ -82,7 +82,7 @@ defmodule Nintenlixir.PPU.NameTableMapper do
     index = address &&& 0x03FF
     i = Enum.at(tables, table)
     data = Map.get(memory, i) |> Enum.at(index)
-    {:reply, {:ok, data}, state}
+    {:reply, data, state}
   end
 
   # Helpers

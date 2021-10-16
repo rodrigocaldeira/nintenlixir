@@ -216,14 +216,14 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def immediate_address do
     %{program_counter: pc} = registers = get_registers()
-    :ok = set_registers(%{registers | program_counter: pc + 1})
+    :ok = set_registers(%{registers | program_counter: pc + 1 &&& 0xFFFF})
     {:ok, pc}
   end
 
   def zero_page_address do
     %{program_counter: pc} = registers = get_registers()
     {:ok, result} = read_memory(pc)
-    :ok = set_registers(%{registers | program_counter: pc + 1})
+    :ok = set_registers(%{registers | program_counter: pc + 1 &&& 0xFFFF})
     {:ok, result}
   end
 
@@ -231,13 +231,13 @@ defmodule Nintenlixir.CPU.MOS6502 do
     {:ok, value} = zero_page_address()
     registers = get_registers()
     register_value = Map.get(registers, register)
-    {:ok, register_value + value}
+    {:ok, register_value + value &&& 0xFFFF}
   end
 
   def relative_address do
     %{program_counter: pc} = registers = get_registers()
     {:ok, value} = read_memory(pc)
-    pc = pc + 1
+    pc = pc + 1 &&& 0xFFFF
     :ok = set_registers(%{registers | program_counter: pc})
 
     offset =
@@ -254,7 +254,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{program_counter: pc} = registers = get_registers()
     {:ok, low} = read_memory(pc)
     {:ok, high} = read_memory(pc + 1)
-    :ok = set_registers(%{registers | program_counter: pc + 2})
+    :ok = set_registers(%{registers | program_counter: pc + 2 &&& 0xFFFF})
 
     {:ok, high <<< 8 ||| low}
   end
@@ -269,7 +269,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{program_counter: pc} = registers = get_registers()
     {:ok, low} = read_memory(pc)
     {:ok, high} = read_memory(pc + 1)
-    :ok = set_registers(%{registers | program_counter: pc + 2})
+    :ok = set_registers(%{registers | program_counter: pc + 2 &&& 0xFFFF})
 
     address_high = high <<< 8 ||| low + 1
     address_low = high <<< 8 ||| low
@@ -283,7 +283,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def indirect_address(:x) do
     %{program_counter: pc, x: x} = registers = get_registers()
     address = pc + x
-    :ok = set_registers(%{registers | program_counter: pc + 1})
+    :ok = set_registers(%{registers | program_counter: pc + 1 &&& 0xFFFF})
 
     {:ok, low} = read_memory(address)
     {:ok, high} = read_memory(address + 1 &&& 0x00FF)
@@ -293,7 +293,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def indirect_address(:y) do
     %{program_counter: pc, y: y} = registers = get_registers()
-    :ok = set_registers(%{registers | program_counter: pc + 1})
+    :ok = set_registers(%{registers | program_counter: pc + 1 &&& 0xFFFF})
 
     {:ok, low} = read_memory(pc)
     {:ok, high} = read_memory(pc + 1 &&& 0x00FF)
@@ -595,14 +595,14 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def jsr(address) do
     %{program_counter: pc} = get_registers()
-    value = pc - 1
+    value = pc - 1 &&& 0xFFFF
     :ok = push16(value)
     :ok = set_registers(%{get_registers() | program_counter: address})
   end
 
   def rts do
     {:ok, value} = pop16()
-    :ok = set_registers(%{get_registers() | program_counter: value + 1})
+    :ok = set_registers(%{get_registers() | program_counter: value + 1 &&& 0xFFFF})
   end
 
   def branch(address, f) do
@@ -715,7 +715,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def brk do
     %{program_counter: pc, processor_status: p} = get_registers()
-    pc = pc + 1
+    pc = pc + 1 &&& 0xFFFF
     :ok = push16(pc)
     :ok = push(p ||| @break_command ||| @unused)
 
@@ -829,6 +829,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   end
 
   def rla(address) do
+    IO.inspect("RLA #{address}")
     {:ok, value} = read_memory(address)
     :ok = rotate(:left, value, address)
     :ok = and_op(address)
@@ -841,6 +842,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   end
 
   def rra(address) do
+    IO.inspect("RRA #{address}")
     {:ok, value} = read_memory(address)
     :ok = rotate(:right, value, address)
     :ok = adc(address)
@@ -1033,6 +1035,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
           absolute_address(index)
       end
     end
+    |> IO.inspect()
     |> case do
       {:ok, address} ->
         {:ok, address, :same_page}
@@ -1073,19 +1076,27 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
     {:ok, cycles} = interrupt()
 
+    IO.inspect("CPU")
     %{program_counter: pc} = get_registers() |> debug()
+    IO.inspect(pc)
 
     {:ok, opcode} = read_memory(pc) |> debug()
+    IO.inspect(opcode)
 
-    pc = pc + 1
+    pc = pc + 1 &&& 0xFFFF
 
     set_registers(%{get_registers() | program_counter: pc})
 
-    {:ok, inst_cycles} = Instructions.execute(opcode)
+    case Instructions.execute(opcode) do
+      {:ok, inst_cycles} ->
+        {:ok, cycles + inst_cycles}
 
-    cycles = cycles + inst_cycles
+      {:error, :invalid_opcode} ->
+        IO.inspect("INVALID #{inspect(opcode)} OPCODE FROM ADDRESS #{inspect(pc)}")
+        IO.inspect(opcode)
 
-    {:ok, cycles}
+        {:ok, cycles}
+    end
   end
 
   # Server
@@ -1113,7 +1124,28 @@ defmodule Nintenlixir.CPU.MOS6502 do
     {:reply, registers, state}
   end
 
-  def handle_call({:set_registers, registers}, _, state) do
+  def handle_call(
+        {:set_registers,
+         %{
+           accumulator: accumulator,
+           x: x,
+           y: y,
+           processor_status: processor_status,
+           stack_pointer: stack_pointer,
+           program_counter: program_counter
+         }},
+        _,
+        state
+      ) do
+    registers = %{
+      accumulator: accumulator &&& 0xFF,
+      x: x &&& 0xFF,
+      y: y &&& 0xFF,
+      processor_status: processor_status,
+      stack_pointer: stack_pointer &&& 0xFF,
+      program_counter: program_counter &&& 0xFFFF
+    }
+
     {:reply, :ok, %{state | registers: registers}}
   end
 
@@ -1171,7 +1203,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def write_memory(address, value), do: Memory.write(memory_server_name(), address, value)
 
   defp handle_indexed_address(value, index) do
-    result = value + index
+    result = value + index &&& 0xFFFF
 
     if Memory.same_page?(value, result) do
       {:ok, result, :same_page}

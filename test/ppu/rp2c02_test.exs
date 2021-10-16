@@ -146,7 +146,7 @@ defmodule Nintenlixir.PPU.RP2C02Test do
         latch_value: 0x00
     })
 
-    assert {:ok, 0xE0} = PPUMapper.read(0x2002)
+    assert 0xE0 = PPUMapper.read(0x2002)
 
     assert %{registers: %{status: 0x7F}, latch: false} = RP2C02.get_state()
 

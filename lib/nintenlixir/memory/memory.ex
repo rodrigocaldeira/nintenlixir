@@ -9,7 +9,7 @@ defmodule Nintenlixir.Memory do
   alias Nintenlixir.Memory.Mapper
 
   def start_link(processor) do
-    GenServer.start(__MODULE__, reset_memory(), name: processor)
+    GenServer.start(__MODULE__, new_memory(), name: processor)
   end
 
   def reset(processor) do
@@ -88,7 +88,17 @@ defmodule Nintenlixir.Memory do
 
         mapper ->
           Mapper.read(mapper, address, memory)
+          |> case do
+            {:ok, _} = data ->
+              IO.inspect("#{inspect(address)} -> #{inspect(mapper)}")
+              data
+
+            data ->
+              data
+          end
       end
+
+    IO.inspect("READING " <> to_string(data) <> " FROM " <> to_string(address))
 
     {:reply, {:ok, data}, state}
   end
@@ -97,8 +107,8 @@ defmodule Nintenlixir.Memory do
     {:reply, {:error, :cannot_read}, state}
   end
 
-  def handle_call(:reset, _, _) do
-    {:reply, :ok, reset_memory()}
+  def handle_call(:reset, _, memory) do
+    {:reply, :ok, %{memory | memory: List.duplicate(0xFF, @memory_size)}}
   end
 
   def handle_call({:write, {address, _}}, _, state)
@@ -116,9 +126,10 @@ defmodule Nintenlixir.Memory do
           write_mappers: write_mappers
         } = state
       ) do
+    data = data &&& 0xFF
     address = retrieve_mirrored_address(address, mirrors)
 
-    new_memory =
+    updated_memory =
       Map.get(write_mappers, address)
       |> case do
         nil ->
@@ -128,7 +139,7 @@ defmodule Nintenlixir.Memory do
           Mapper.write(mapper, address, data, memory)
       end
 
-    {:reply, :ok, %{state | memory: new_memory}}
+    {:reply, :ok, %{state | memory: updated_memory}}
   end
 
   def handle_call({:write, {_, _}}, _, %{can_write: false} = state) do
@@ -165,7 +176,7 @@ defmodule Nintenlixir.Memory do
 
   # Private helpers
 
-  defp reset_memory,
+  defp new_memory,
     do: %{
       memory: List.duplicate(0xFF, @memory_size),
       mirrors: %{},

@@ -32,7 +32,7 @@ defmodule Nintenlixir.ROM.Mappers.NROM do
       end
     end
 
-    def write(_mapper, address, data, _memory) when address in 0x0000..0x1FFFF do
+    def write(_mapper, address, data, memory) when address in 0x0000..0x1FFFF do
       %ROM{chr_banks: chr_banks, vrom_banks: vrom_banks} = rom = ROM.get_state()
 
       if chr_banks > 0 do
@@ -42,22 +42,28 @@ defmodule Nintenlixir.ROM.Mappers.NROM do
         rom = %{rom | vrom_banks: vrom_banks}
         ROM.set_state(rom)
       end
+
+      memory
     end
 
-    def write(_mapper, _address, _data, _memory), do: :ok
+    def write(_mapper, _address, _data, memory), do: memory
 
     def read(_mapper, address, _memory) when address in 0x0000..0x1FFF do
+      IO.inspect(address)
       %ROM{chr_banks: chr_banks, vrom_banks: vrom_banks} = ROM.get_state()
 
       if chr_banks > 0 do
         bank = Enum.at(vrom_banks, 0)
-        {:ok, Enum.at(bank, address)}
+        Enum.at(bank, address)
       else
-        {:ok, 0x00}
+        0x00
       end
+      |> IO.inspect()
     end
 
     def read(_mapper, address, _memory) when address in 0x8000..0xFFFF do
+      IO.inspect("ROM")
+      IO.inspect(address)
       %ROM{prg_banks: prg_banks, rom_banks: rom_banks} = ROM.get_state()
 
       if prg_banks > 0 do
@@ -73,12 +79,13 @@ defmodule Nintenlixir.ROM.Mappers.NROM do
           end
 
         bank = Enum.at(rom_banks, bank_index)
-        {:ok, Enum.at(bank, index)}
+        Enum.at(bank, index)
       else
-        {:ok, 0x00}
+        0x00
       end
+      |> IO.inspect()
     end
 
-    def read(_mapper, _address, _memory), do: {:ok, 0x00}
+    def read(_mapper, _address, _memory), do: 0x00
   end
 end

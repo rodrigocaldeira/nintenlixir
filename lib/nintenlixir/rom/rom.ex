@@ -21,7 +21,9 @@ defmodule Nintenlixir.ROM do
             trainer_data: nil,
             rom_banks: nil,
             vrom_banks: nil,
-            wram_banks: nil
+            wram_banks: nil,
+            irq: nil,
+            set_tables: nil
 
   alias __MODULE__
 
@@ -29,7 +31,7 @@ defmodule Nintenlixir.ROM do
     GenServer.start_link(__MODULE__, %__MODULE__{}, name: __MODULE__)
   end
 
-  def load(file) do
+  def load(file, irq, set_tables) do
     with {:ok, data} <- File.read(file),
          :ok <- validate_rom_data(data) do
       rom =
@@ -49,6 +51,9 @@ defmodule Nintenlixir.ROM do
         |> load_rom_banks(data)
         |> load_vrom_banks(data)
         |> create_wram_banks()
+        |> define_interrupt(irq)
+        |> define_set_tables(set_tables)
+        |> execute_set_tables()
 
       GenServer.call(__MODULE__, {:set_state, rom})
     end
@@ -60,19 +65,9 @@ defmodule Nintenlixir.ROM do
     GenServer.call(__MODULE__, {:set_state, state})
   end
 
-  def get_tables() do
-    get_state()
-    |> case do
-      %ROM{mirroring: :horizontal} ->
-        [0, 0, 1, 1]
-
-      %ROM{mirroring: :vertical} ->
-        [0, 1, 0, 1]
-
-      _ ->
-        [0, 0, 1, 1]
-    end
-  end
+  def get_tables(%ROM{mirroring: :horizontal}), do: [0, 0, 1, 1]
+  def get_tables(%ROM{mirroring: :vertical}), do: [0, 1, 0, 1]
+  def get_tables(_), do: [0, 0, 1, 1]
 
   def get_mapper do
     %ROM{mapper: mapper} = get_state()
@@ -220,6 +215,19 @@ defmodule Nintenlixir.ROM do
       end)
 
     %{rom | wram_banks: wram_banks}
+  end
+
+  defp execute_set_tables(%ROM{set_tables: set_tables} = rom) do
+    set_tables.(get_tables(rom))
+    rom
+  end
+
+  defp define_interrupt(%ROM{} = rom, interrupt) do
+    %{rom | irq: interrupt}
+  end
+
+  defp define_set_tables(%ROM{} = rom, set_tables) do
+    %{rom | set_tables: set_tables}
   end
 
   defp calculate_trainer_offset(%ROM{trainer?: false}), do: @header_offset
