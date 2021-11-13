@@ -22,6 +22,10 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def get_state, do: GenServer.call(__MODULE__, :get_state)
 
+  def set_state(state) do
+    GenServer.call(__MODULE__, {:set_state, state})
+  end
+
   def reset do
     :ok = Memory.reset(memory_server_name())
     :ok = GenServer.call(__MODULE__, :reset)
@@ -282,11 +286,12 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def indirect_address(:x) do
     %{program_counter: pc, x: x} = registers = get_registers()
-    address = pc + x
-    :ok = set_registers(%{registers | program_counter: pc + 1 &&& 0xFFFF})
+    {:ok, value} = read_memory(pc)
+    address = (value + x) &&& 0xFFFF
+    :ok = set_registers(%{registers | program_counter: (pc + 1) &&& 0xFFFF})
 
     {:ok, low} = read_memory(address)
-    {:ok, high} = read_memory(address + 1 &&& 0x00FF)
+    {:ok, high} = read_memory((address + 1) &&& 0x00FF)
 
     {:ok, high <<< 8 ||| low}
   end
@@ -295,8 +300,10 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{program_counter: pc, y: y} = registers = get_registers()
     :ok = set_registers(%{registers | program_counter: pc + 1 &&& 0xFFFF})
 
-    {:ok, low} = read_memory(pc)
-    {:ok, high} = read_memory(pc + 1 &&& 0x00FF)
+    {:ok, address} = read_memory(pc)
+    address = address &&& 0xFFFF
+    {:ok, low} = read_memory(address)
+    {:ok, high} = read_memory((address + 1) &&& 0x00FF)
 
     value = high <<< 8 ||| low
 
@@ -359,7 +366,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     value_from = Map.get(registers, from)
     {:ok, ^value_from} = set_ZN_flags(value_from)
 
-    registers
+    get_registers()
     |> Map.put(to, value_from)
     |> set_registers()
   end
@@ -420,9 +427,10 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   def bit(address) do
     {:ok, value} = read_memory(address)
-    %{accumulator: a, processor_status: p} = get_registers()
+    %{accumulator: a} = get_registers()
     {:ok, _} = set_Z_flag(value &&& a)
 
+    %{processor_status: p} = get_registers()
     p =
       (p &&& ~~~(@negative_flag ||| @overflow_flag)) |||
         (value &&& (@negative_flag ||| @overflow_flag))
@@ -529,7 +537,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     registers = get_registers()
     value = f.(Map.get(registers, register), 1)
     {:ok, ^value} = set_ZN_flags(value)
-    :ok = set_registers(registers |> Map.put(register, value))
+    :ok = set_registers(get_registers() |> Map.put(register, value))
   end
 
   defp unary_op(address, f) do
@@ -829,7 +837,6 @@ defmodule Nintenlixir.CPU.MOS6502 do
   end
 
   def rla(address) do
-    IO.inspect("RLA #{address}")
     {:ok, value} = read_memory(address)
     :ok = rotate(:left, value, address)
     :ok = and_op(address)
@@ -842,7 +849,6 @@ defmodule Nintenlixir.CPU.MOS6502 do
   end
 
   def rra(address) do
-    IO.inspect("RRA #{address}")
     {:ok, value} = read_memory(address)
     :ok = rotate(:right, value, address)
     :ok = adc(address)
@@ -903,9 +909,9 @@ defmodule Nintenlixir.CPU.MOS6502 do
           absolute_address()
       end
     else
-      case opcode >>> 2 &&& 0x03 do
+        case opcode >>> 2 &&& 0x03 do
         0x00 ->
-          indirect_address(:x)
+          indirect_address(:y)
 
         0x01 ->
           zero_page_address(:x)
@@ -1035,7 +1041,6 @@ defmodule Nintenlixir.CPU.MOS6502 do
           absolute_address(index)
       end
     end
-    |> IO.inspect()
     |> case do
       {:ok, address} ->
         {:ok, address, :same_page}
@@ -1076,12 +1081,9 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
     {:ok, cycles} = interrupt()
 
-    IO.inspect("CPU")
     %{program_counter: pc} = get_registers() |> debug()
-    IO.inspect(pc)
 
     {:ok, opcode} = read_memory(pc) |> debug()
-    IO.inspect(opcode)
 
     pc = pc + 1 &&& 0xFFFF
 
@@ -1093,7 +1095,6 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
       {:error, :invalid_opcode} ->
         IO.inspect("INVALID #{inspect(opcode)} OPCODE FROM ADDRESS #{inspect(pc)}")
-        IO.inspect(opcode)
 
         {:ok, cycles}
     end
