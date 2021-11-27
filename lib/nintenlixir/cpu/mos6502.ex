@@ -447,7 +447,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{decimal_mode: decimal_mode} = get_state()
 
     if !decimal_mode || (p &&& @decimal_mode) == 0 do
-      {:ok, result} = set_C_flag_addition(a + value + (p &&& @carry_flag))
+      {:ok, result} = set_C_flag_addition(a + value + ((p &&& @carry_flag) &&& 0xFFFF))
       {:ok, ^result} = set_V_flag_addition(a, value, result)
       {:ok, ^result} = set_ZN_flags(result)
       :ok = set_registers(%{get_registers() | accumulator: result})
@@ -455,18 +455,11 @@ defmodule Nintenlixir.CPU.MOS6502 do
       low = (a &&& 0x000F) + (value &&& 0x000F) + (p &&& @carry_flag)
       high = (a &&& 0x00F0) + (value &&& 0x00F0)
 
-      low =
+      {low, high} = 
         if low >= 0x000A do
-          low - 0x000A
+          {low - 0x000A, high + 0x0010}
         else
-          low
-        end
-
-      high =
-        if low >= 0x000A do
-          high + 0x0010
-        else
-          high
+          {low, high}
         end
 
       high =

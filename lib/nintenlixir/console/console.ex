@@ -43,12 +43,12 @@ defmodule Nintenlixir.Console do
     set_cpu_mirroring()
 
     Memory.add_mapper(RP2C02.memory_server_name(), ROM.get_mapper(), :ppu)
-    Memory.add_mapper(RP2C02.memory_server_name(), %PPUMapper{}, :ppu)
+    # Memory.add_mapper(RP2C02.memory_server_name(), %PPUMapper{}, :ppu)
 
     RP2C02.define_interrupt(&MOS6502.nmi/0)
     schedule_execution()
   end
-
+  
   def set_cpu_mirroring do
     ram =
       Enum.map(0x0800..0x1FFF, fn address ->
@@ -67,16 +67,18 @@ defmodule Nintenlixir.Console do
   end
 
   def step(state) do
-    %{ppu_quota: ppu_quota} = state
-    {:ok, cycles} = MOS6502.step()
-    ppu_quota = ppu_quota + cycles * 3
-    ppu_quota = step_ppu(ppu_quota)
-    %{state | ppu_quota: ppu_quota}
+    %{ppu_quota: ppu_quota, cycles: cycles} = state
+    {:ok, execution_cycles} = MOS6502.step()
+    ppu_quota = ppu_quota + execution_cycles * 3
+    # ppu_quota = step_ppu(ppu_quota)
+    %{state | ppu_quota: ppu_quota, cycles: cycles + execution_cycles}
+    |> IO.inspect()
   end
 
   def step_ppu(ppu_quota) when ppu_quota > 1 do
     RP2C02.execute()
-    |> IO.inspect(limit: :infinity)
+    # |> IO.inspect()
+    # |> IO.inspect(limit: :infinity)
 
     step_ppu(ppu_quota - 1)
   end
@@ -113,11 +115,13 @@ defmodule Nintenlixir.Console do
 
   defp new_console do
     %{
-      ppu_quota: 0
+      ppu_quota: 0,
+      cycles: 0
     }
   end
 
   defp schedule_execution do
-    Process.send_after(__MODULE__, :execute, 1)
+    # Process.send_after(__MODULE__, :execute, 1)
+    Process.send(__MODULE__, :execute, [:nosuspend])
   end
 end

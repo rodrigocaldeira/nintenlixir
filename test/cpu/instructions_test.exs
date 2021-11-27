@@ -981,6 +981,135 @@ defmodule Nintenlixir.CPU.InstructionTest do
     assert (processor_status &&& 2) == 0
   end
 
+  test "adc immediate" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x01})
+    write(0x0100, 0x69)
+    write(0x0101, 0x02)
+    MOS6502.step()
+    assert %{accumulator: 0x03, processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 8
+    set_registers(%{get_registers() | processor_status: processor_status, program_counter: 0x0100, accumulator: 0x29})
+    write(0x0100, 0x69)
+    write(0x0101, 0x11)
+    MOS6502.step()
+    assert %{accumulator: 0x40, processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 8
+    set_registers(%{get_registers() | processor_status: processor_status, program_counter: 0x0100, accumulator: 0x29 ||| (128 &&& 0x00FF)})
+    write(0x0100, 0x69)
+    write(0x0101, 0x29)
+    MOS6502.step()
+    assert %{accumulator: 0x38, processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 8
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | processor_status: processor_status, program_counter: 0x0100, accumulator: 0x58})
+    write(0x0100, 0x69)
+    write(0x0101, 0x46)
+    MOS6502.step()
+    assert %{accumulator: 0x05} = get_registers()
+  end
+
+  test "adc zero page" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100})
+    write(0x0100, 0x65)
+    write(0x0101, 0x84)
+    write(0x0084, 0x02)
+    MOS6502.step()
+    assert %{accumulator: 0x03} = get_registers()
+  end
+
+  test "adc zero page x" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0x75)
+    write(0x0101, 0x84)
+    write(0x0085, 0x02)
+    MOS6502.step()
+    assert %{accumulator: 0x03} = get_registers()
+  end
+
+  test "adc absolute" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100})
+    write(0x0100, 0x6D)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0084, 0x02)
+    MOS6502.step()
+    assert %{accumulator: 0x03} = get_registers()
+  end
+
+  test "adc absolute x" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0x7D)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0085, 0x02)
+    MOS6502.step()
+    assert %{accumulator: 0x03} = get_registers()
+  end
+
+  test "adc absolute y" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100, y: 0x01})
+    write(0x0100, 0x79)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0085, 0x02)
+    MOS6502.step()
+    assert %{accumulator: 0x03} = get_registers()
+  end
+
+  test "adc indirect x" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0x61)
+    write(0x0101, 0x84)
+    write(0x0085, 0x87)
+    write(0x0086, 0x00)
+    write(0x0087, 0x02)
+    MOS6502.step()
+    assert %{accumulator: 0x03} = get_registers()
+  end
+
+  test "adc indirect y" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100, y: 0x01})
+    write(0x0100, 0x71)
+    write(0x0101, 0x84)
+    write(0x0084, 0x86)
+    write(0x0085, 0x00)
+    write(0x0087, 0x02)
+    MOS6502.step()
+    assert %{accumulator: 0x03} = get_registers()
+  end
+
+  test "adc c flag set" do
+    set_registers(%{get_registers() | accumulator: 0xFF, program_counter: 0x0100})
+    write(0x0100, 0x69)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | accumulator: 0xFF, program_counter: 0x0100, processor_status: processor_status})
+    write(0x0100, 0x69)
+    write(0x0101, 0x00)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+  end
+
+  test "adc c flag unset" do
+    set_registers(%{get_registers() | accumulator: 0x00, program_counter: 0x0100})
+    write(0x0100, 0x69)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 1) == 0
+    processor_status = processor_status &&& ~~~1
+    set_registers(%{get_registers() | accumulator: 0x00, program_counter: 0x0100, processor_status: processor_status})
+    write(0x0100, 0x69)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 1) == 0
+  end
+
   # Helpers
   def get_registers, do: MOS6502.get_registers()
 

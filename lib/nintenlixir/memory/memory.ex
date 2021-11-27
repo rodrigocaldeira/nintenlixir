@@ -90,7 +90,7 @@ defmodule Nintenlixir.Memory do
           Mapper.read(mapper, address, memory)
           |> case do
             {:ok, _} = data ->
-              IO.inspect("#{inspect(address)} -> #{inspect(mapper)}")
+              # IO.inspect("#{inspect(address)} -> #{inspect(mapper)}")
               data
 
             data ->
@@ -98,7 +98,7 @@ defmodule Nintenlixir.Memory do
           end
       end
 
-    IO.inspect("READING " <> to_string(data) <> " FROM " <> to_string(address))
+    # IO.inspect("READING " <> to_string(data) <> " FROM " <> to_string(address))
 
     {:reply, {:ok, data}, state}
   end
