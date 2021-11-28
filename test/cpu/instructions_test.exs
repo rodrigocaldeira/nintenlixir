@@ -2436,7 +2436,7 @@ defmodule Nintenlixir.CPU.InstructionTest do
     write(0x0104, 0xFF)
     write(0x0105, 0x02)
     write(0x0084, 0x60)
-    MOS6502.step()
+    MOS6502.run()
     assert %{accumulator: 0xFF} = get_registers()
   end
 

@@ -1096,6 +1096,14 @@ defmodule Nintenlixir.CPU.MOS6502 do
     end
   end
 
+  def run do
+    step()
+    |> case do
+      {:ok, _} -> run()
+      error -> error
+    end
+  end
+
   # Server
 
   @impl GenServer
