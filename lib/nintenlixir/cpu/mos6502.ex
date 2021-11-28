@@ -211,7 +211,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
         registers
         | processor_status:
             (p &&& ~~~@overflow_flag) |||
-              (~~~(bxor(term1, term2) &&& bxor(term1, result)) &&&
+              (~~~(bxor(term1, term2)) &&& bxor(term1, result) &&&
                  @negative_flag) >>> 1
       })
 
@@ -445,9 +445,11 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def addition(value) do
     %{accumulator: a, processor_status: p} = get_registers()
     %{decimal_mode: decimal_mode} = get_state()
+    a = a &&& 0xFFFF
 
     if !decimal_mode || (p &&& @decimal_mode) == 0 do
       {:ok, result} = set_C_flag_addition(a + value + ((p &&& @carry_flag) &&& 0xFFFF))
+      result = result &&& 0xFF
       {:ok, ^result} = set_V_flag_addition(a, value, result)
       {:ok, ^result} = set_ZN_flags(result)
       :ok = set_registers(%{get_registers() | accumulator: result})
@@ -470,6 +472,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
         end
 
       {:ok, result} = set_C_flag_addition(high ||| (low &&& 0x000F))
+      result = result &&& 0xFF
       {:ok, ^result} = set_V_flag_addition(a, value, result)
       {:ok, ^result} = set_ZN_flags(result)
       :ok = set_registers(%{get_registers() | accumulator: result})
@@ -500,6 +503,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def compare(value1, value2) do
     value = bxor(value1, 0xFF) + 1
     {:ok, result} = set_C_flag_addition(value2 + value)
+    result = result &&& 0xFF
     {:ok, ^result} = set_ZN_flags(result)
     :ok
   end
@@ -529,13 +533,14 @@ defmodule Nintenlixir.CPU.MOS6502 do
   defp unary_op(register, f) when is_atom(register) do
     registers = get_registers()
     value = f.(Map.get(registers, register), 1)
+    value = value &&& 0xFF
     {:ok, ^value} = set_ZN_flags(value)
     :ok = set_registers(get_registers() |> Map.put(register, value))
   end
 
   defp unary_op(address, f) do
     {:ok, value} = read_memory(address)
-    value = f.(value, 1)
+    value = f.(value, 1) &&& 0xFF
     {:ok, ^value} = set_ZN_flags(value)
     :ok = write_memory(address, value)
   end
@@ -557,11 +562,11 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def rotate(:left, value, ref) do
     %{processor_status: p} = get_registers()
 
-    value =
-      (value <<< 1 &&& ~~~@carry_flag) |||
-        (p &&& @carry_flag)
-
     c = (value &&& @negative_flag) >>> 7
+    value =
+      ((value <<< 1 &&& ~~~@carry_flag) |||
+        (p &&& @carry_flag)) &&& 0x00FF
+
     :ok = update_shifted_value(value, c)
     :ok = store(value, ref)
   end
@@ -569,11 +574,11 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def rotate(:right, value, ref) do
     %{processor_status: p} = get_registers()
 
+    c = value &&& @carry_flag
     value =
       (value >>> 1 &&& ~~~@negative_flag) |||
         (p &&& @carry_flag) <<< 7
 
-    c = value &&& @carry_flag
     :ok = update_shifted_value(value, c)
     :ok = store(value, ref)
   end
@@ -1068,7 +1073,6 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
   defp debug_enabled, do: System.get_env("NINTENLIXIR_DEBUG", "false") |> String.to_atom()
 
-  @spec step() :: {:ok, non_neg_integer()} | {:error, term()}
   def step do
     get_state() |> debug()
 
@@ -1078,18 +1082,17 @@ defmodule Nintenlixir.CPU.MOS6502 do
 
     {:ok, opcode} = read_memory(pc) |> debug()
 
-    pc = pc + 1 &&& 0xFFFF
+    if Instructions.valid_opcode?(opcode) do
+      pc = pc + 1 &&& 0xFFFF
 
-    set_registers(%{get_registers() | program_counter: pc})
+      set_registers(%{get_registers() | program_counter: pc})
 
-    case Instructions.execute(opcode) do
-      {:ok, inst_cycles} ->
-        {:ok, cycles + inst_cycles}
-
-      {:error, :invalid_opcode} ->
-        IO.inspect("INVALID #{inspect(opcode)} OPCODE FROM ADDRESS #{inspect(pc)}")
-
-        {:ok, cycles}
+      case Instructions.execute(opcode) do
+        {:ok, inst_cycles} ->
+          {:ok, cycles + inst_cycles}
+      end
+    else
+        {:error, {:invalid_opcode, 0}}
     end
   end
 

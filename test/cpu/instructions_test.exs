@@ -13,6 +13,12 @@ defmodule Nintenlixir.CPU.InstructionTest do
     :ok
   end
 
+  test "invalid opcode" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0x02)
+    assert {:error, {:invalid_opcode, 0}} = MOS6502.step()
+  end
+
   test "lda_immediate" do
     set_registers(%{get_registers() | program_counter: 0x0100})
     write(0x0100, 0xA9)
@@ -1108,6 +1114,1330 @@ defmodule Nintenlixir.CPU.InstructionTest do
     MOS6502.step()
     %{processor_status: processor_status} = get_registers()
     assert (processor_status &&& 1) == 0
+  end
+
+  test "adc z flag set" do
+    set_registers(%{get_registers() | accumulator: 0x00, program_counter: 0x0100})
+    write(0x0100, 0x69)
+    write(0x0101, 0x00)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | accumulator: 0xFE, program_counter: 0x0100, processor_status: processor_status})
+    write(0x0100, 0x69)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+  end
+
+  test "adc z flag unset" do
+    set_registers(%{get_registers() | accumulator: 0x00, program_counter: 0x0100})
+    write(0x0100, 0x69)
+    write(0x0101, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+    set_registers(%{get_registers() | accumulator: 0xFE, program_counter: 0x0100})
+    write(0x0100, 0x69)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 1) == 0
+  end
+
+  test "adc v flag set" do
+    set_registers(%{get_registers() | accumulator: 0x7F, program_counter: 0x0100})
+    write(0x0100, 0x69)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 64) == 0
+  end
+
+  test "adc v flag unset" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100})
+    write(0x0100, 0x69)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 64) == 0
+  end
+
+  test "adc n flag set" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100})
+    write(0x0100, 0x69)
+    write(0x0101, 0xFE)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "adc n flag unset" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100})
+    write(0x0100, 0x69)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "sbc immediate" do
+    %{processor_status: processor_status} = get_registers()
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1})
+    write(0x0100, 0xE9)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    assert %{accumulator: 0x01, processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 8
+    set_registers(%{get_registers() | accumulator: 0x29, program_counter: 0x0100, processor_status: processor_status})
+    write(0x0100, 0xE9)
+    write(0x0101, 0x11)
+    MOS6502.step()
+    assert %{accumulator: 0x18} = get_registers()
+  end
+
+  test "sbc zero page" do
+    %{processor_status: processor_status} = get_registers()
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1})
+    write(0x0100, 0xE5)
+    write(0x0101, 0x84)
+    write(0x0084, 0x01)
+    MOS6502.step()
+    assert %{accumulator: 0x01} = get_registers()
+  end
+
+  test "sbc zero page x" do
+    %{processor_status: processor_status} = get_registers()
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1, x: 0x01})
+    write(0x0100, 0xF5)
+    write(0x0101, 0x84)
+    write(0x0085, 0x01)
+    MOS6502.step()
+    assert %{accumulator: 0x01} = get_registers()
+  end
+
+  test "sbc absolute" do
+    %{processor_status: processor_status} = get_registers()
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1})
+    write(0x0100, 0xED)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0084, 0x01)
+    MOS6502.step()
+    assert %{accumulator: 0x01} = get_registers()
+  end
+
+  test "sbc absolute x" do
+    %{processor_status: processor_status} = get_registers()
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1, x: 0x01})
+    write(0x0100, 0xFD)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0085, 0x01)
+    MOS6502.step()
+    assert %{accumulator: 0x01} = get_registers()
+  end
+
+  test "sbc absolute y" do
+    %{processor_status: processor_status} = get_registers()
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1, y: 0x01})
+    write(0x0100, 0xF9)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0085, 0x01)
+    MOS6502.step()
+    assert %{accumulator: 0x01} = get_registers()
+  end
+
+  test "sbc indirect x" do
+    %{processor_status: processor_status} = get_registers()
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1, x: 0x01})
+    write(0x0100, 0xE1)
+    write(0x0101, 0x84)
+    write(0x0085, 0x87)
+    write(0x0086, 0x00)
+    write(0x0087, 0x01)
+    MOS6502.step()
+    assert %{accumulator: 0x01} = get_registers()
+  end
+
+  test "sbc indirect y" do
+    %{processor_status: processor_status} = get_registers()
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1, y: 0x01})
+    write(0x0100, 0xF1)
+    write(0x0101, 0x84)
+    write(0x0084, 0x86)
+    write(0x0085, 0x00)
+    write(0x0087, 0x01)
+    MOS6502.step()
+    assert %{accumulator: 0x01} = get_registers()
+  end
+
+  test "sbc c flag set" do
+    set_registers(%{get_registers() | accumulator: 0xC4, program_counter: 0x0100})
+    write(0x0100, 0xE9)
+    write(0x0101, 0x3C)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+  end
+
+  test "sbc c flag unset" do
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100})
+    write(0x0100, 0xE9)
+    write(0x0101, 0x04)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 1) == 0
+  end
+
+  test "sbc z flag set" do
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100})
+    write(0x0100, 0xE9)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "sbc z flag unset" do
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100})
+    write(0x0100, 0xE9)
+    write(0x0101, 0x02)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "sbc v flag set" do
+    set_registers(%{get_registers() | accumulator: 0x80, program_counter: 0x0100})
+    write(0x0100, 0xE9)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 64) == 0
+  end
+
+  test "sbc v flag unset" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xE9)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 64) == 0
+  end
+
+  test "sbc n flag set" do
+    set_registers(%{get_registers() | accumulator: 0xFD, program_counter: 0x0100})
+    write(0x0100, 0xE9)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "sbc n flag unset" do
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100})
+    write(0x0100, 0xE9)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "cmp immediate" do
+    set_registers(%{get_registers() | accumulator: 0xFF, program_counter: 0x0100})
+    write(0x0100, 0xC9)
+    write(0x0101, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cmp zero page" do
+    set_registers(%{get_registers() | accumulator: 0xFF, program_counter: 0x0100})
+    write(0x0100, 0xC5)
+    write(0x0101, 0x84)
+    write(0x0084, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cmp zero page x" do
+    set_registers(%{get_registers() | accumulator: 0xFF, program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0xC5)
+    write(0x0101, 0x84)
+    write(0x0085, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cmp absolute" do
+    set_registers(%{get_registers() | accumulator: 0xFF, program_counter: 0x0100})
+    write(0x0100, 0xCD)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0084, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cmp absolute x" do
+    set_registers(%{get_registers() | accumulator: 0xFF, program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0xDD)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0085, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cmp absolute y" do
+    set_registers(%{get_registers() | accumulator: 0xFF, program_counter: 0x0100, y: 0x01})
+    write(0x0100, 0xD9)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0085, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cmp indirect x" do
+    set_registers(%{get_registers() | accumulator: 0xFF, program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0xC1)
+    write(0x0101, 0x84)
+    write(0x0085, 0x87)
+    write(0x0086, 0x00)
+    write(0x0087, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cmp indirect y" do
+    set_registers(%{get_registers() | accumulator: 0xFF, program_counter: 0x0100, y: 0x01})
+    write(0x0100, 0xD1)
+    write(0x0101, 0x84)
+    write(0x0084, 0x86)
+    write(0x0085, 0x00)
+    write(0x0087, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cmp n flag set" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xC9)
+    write(0x0101, 0x02)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "cmp n flag unset" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xC9)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "cmp z flag set" do
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100})
+    write(0x0100, 0xC9)
+    write(0x0101, 0x02)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+    set_registers(%{get_registers() | accumulator: 0xFE, program_counter: 0x0100})
+    write(0x0100, 0xC9)
+    write(0x0101, 0xFE)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cmp z flag unset" do
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100})
+    write(0x0100, 0xC9)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+    set_registers(%{get_registers() | accumulator: 0xFE, program_counter: 0x0100})
+    write(0x0100, 0xC9)
+    write(0x0101, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "cmp c flag set" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xC9)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100})
+    write(0x0100, 0xC9)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+    set_registers(%{get_registers() | accumulator: 0xFE, program_counter: 0x0100})
+    write(0x0100, 0xC9)
+    write(0x0101, 0xFD)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+  end
+
+  test "cmp c flag unset" do
+    set_registers(%{get_registers() | accumulator: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xC9)
+    write(0x0101, 0x02)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 1) == 0
+    set_registers(%{get_registers() | accumulator: 0xFD, program_counter: 0x0100})
+    write(0x0100, 0xC9)
+    write(0x0101, 0xFE)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 1) == 0
+  end
+
+  test "cpx immediate" do
+    set_registers(%{get_registers() | x: 0xFF, program_counter: 0x0100})
+    write(0x0100, 0xE0)
+    write(0x0101, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cpx zero page" do
+    set_registers(%{get_registers() | x: 0xFF, program_counter: 0x0100})
+    write(0x0100, 0xE4)
+    write(0x0101, 0x84)
+    write(0x0084, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cpx absolute" do
+    set_registers(%{get_registers() | x: 0xFF, program_counter: 0x0100})
+    write(0x0100, 0xEC)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0084, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cpx n flag set" do
+    set_registers(%{get_registers() | x: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xE0)
+    write(0x0101, 0x02)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "cpx n flag unset" do
+    set_registers(%{get_registers() | x: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xE0)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "cpx z flag set" do
+    set_registers(%{get_registers() | x: 0x02, program_counter: 0x0100})
+    write(0x0100, 0xE0)
+    write(0x0101, 0x02)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cpx z flag unset" do
+    set_registers(%{get_registers() | x: 0x02, program_counter: 0x0100})
+    write(0x0100, 0xE0)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "cpx c flag set" do
+    set_registers(%{get_registers() | x: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xE0)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+  end
+
+  test "cpx c flag unset" do
+    set_registers(%{get_registers() | x: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xE0)
+    write(0x0101, 0x02)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 1) == 0
+  end
+
+  test "cpy immediate" do
+    set_registers(%{get_registers() | y: 0xFF, program_counter: 0x0100})
+    write(0x0100, 0xC0)
+    write(0x0101, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cpy zero page" do
+    set_registers(%{get_registers() | y: 0xFF, program_counter: 0x0100})
+    write(0x0100, 0xC4)
+    write(0x0101, 0x84)
+    write(0x0084, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cpy absolute" do
+    set_registers(%{get_registers() | y: 0xFF, program_counter: 0x0100})
+    write(0x0100, 0xCC)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0084, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cpy n flag set" do
+    set_registers(%{get_registers() | y: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xC0)
+    write(0x0101, 0x02)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "cpy n flag unset" do
+    set_registers(%{get_registers() | y: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xC0)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "cpy z flag set" do
+    set_registers(%{get_registers() | y: 0x02, program_counter: 0x0100})
+    write(0x0100, 0xC0)
+    write(0x0101, 0x02)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "cpy z flag unset" do
+    set_registers(%{get_registers() | y: 0x02, program_counter: 0x0100})
+    write(0x0100, 0xC0)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "cpy c flag set" do
+    set_registers(%{get_registers() | y: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xC0)
+    write(0x0101, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+  end
+
+  test "cpy c flag unset" do
+    set_registers(%{get_registers() | y: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xC0)
+    write(0x0101, 0x02)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 1) == 0
+  end
+
+  test "inc zero page" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0xE6)
+    write(0x0101, 0x84)
+    write(0x0084, 0xFE)
+    MOS6502.step()
+    assert {:ok, 0xFF} = read(0x0084)
+  end
+
+  test "inc zero page x" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0xF6)
+    write(0x0101, 0x84)
+    write(0x0085, 0xFE)
+    MOS6502.step()
+    assert {:ok, 0xFF} = read(0x0085)
+  end
+
+  test "inc absolute" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0xEE)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0084, 0xFE)
+    MOS6502.step()
+    assert {:ok, 0xFF} = read(0x0084)
+  end
+
+  test "inc absolute x" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0xFE)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0085, 0xFE)
+    MOS6502.step()
+    assert {:ok, 0xFF} = read(0x0085)
+  end
+
+  test "inc z flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0xE6)
+    write(0x0101, 0x84)
+    write(0x0084, 0xFF)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "inc z flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0xE6)
+    write(0x0101, 0x84)
+    write(0x0084, 0x00)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "inc n flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0xE6)
+    write(0x0101, 0x84)
+    write(0x0084, 0xFE)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "inc n flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0xE6)
+    write(0x0101, 0x84)
+    write(0x0084, 0x00)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "inx" do
+    set_registers(%{get_registers() | x: 0xFE, program_counter: 0x0100})
+    write(0x0100, 0xE8)
+    MOS6502.step()
+    assert %{x: 0xFF} = get_registers()
+  end
+
+  test "inx z flag set" do
+    set_registers(%{get_registers() | x: 0xFF, program_counter: 0x0100})
+    write(0x0100, 0xE8)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "inx z flag unset" do
+    set_registers(%{get_registers() | x: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xE8)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "inx n flag set" do
+    set_registers(%{get_registers() | x: 0xFE, program_counter: 0x0100})
+    write(0x0100, 0xE8)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "inx n flag unset" do
+    set_registers(%{get_registers() | x: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xE8)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "iny" do
+    set_registers(%{get_registers() | y: 0xFE, program_counter: 0x0100})
+    write(0x0100, 0xC8)
+    MOS6502.step()
+    assert %{y: 0xFF} = get_registers()
+  end
+
+  test "iny z flag set" do
+    set_registers(%{get_registers() | y: 0xFF, program_counter: 0x0100})
+    write(0x0100, 0xC8)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "iny z flag unset" do
+    set_registers(%{get_registers() | y: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xC8)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "iny n flag set" do
+    set_registers(%{get_registers() | y: 0xFE, program_counter: 0x0100})
+    write(0x0100, 0xC8)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "iny n flag unset" do
+    set_registers(%{get_registers() | y: 0x01, program_counter: 0x0100})
+    write(0x0100, 0xC8)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "dec zero page" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0xC6)
+    write(0x0101, 0x84)
+    write(0x0084, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x01} = read(0x0084)
+  end
+
+  test "dec zero page x" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0xD6)
+    write(0x0101, 0x84)
+    write(0x0085, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x01} = read(0x0085)
+  end
+
+  test "dec absolute" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0xCE)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0084, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x01} = read(0x0084)
+  end
+
+  test "dec absolute x" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0xDE)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0085, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x01} = read(0x0085)
+  end
+
+  test "dec z flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0xC6)
+    write(0x0101, 0x84)
+    write(0x0084, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "dec z flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0xC6)
+    write(0x0101, 0x84)
+    write(0x0084, 0x02)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "dec n flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0xC6)
+    write(0x0101, 0x84)
+    write(0x0084, 0x00)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "dec n flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0xC6)
+    write(0x0101, 0x84)
+    write(0x0084, 0x01)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "dex" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x02})
+    write(0x0100, 0xCA)
+    MOS6502.step()
+    assert %{x: 0x01} = get_registers()
+  end
+
+  test "dex z flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0xCA)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "dex z flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x02})
+    write(0x0100, 0xCA)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "dex n flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x00})
+    write(0x0100, 0xCA)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "dex n flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0xCA)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "dey" do
+    set_registers(%{get_registers() | program_counter: 0x0100, y: 0x02})
+    write(0x0100, 0x88)
+    MOS6502.step()
+    assert %{y: 0x01} = get_registers()
+  end
+
+  test "dey z flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, y: 0x01})
+    write(0x0100, 0x88)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "dey z flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, y: 0x02})
+    write(0x0100, 0x88)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "dey n flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, y: 0x00})
+    write(0x0100, 0x88)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "dey n flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, y: 0x01})
+    write(0x0100, 0x88)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "asl accumulator" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x02})
+    write(0x0100, 0x0A)
+    MOS6502.step()
+    assert %{accumulator: 0x04} = get_registers()
+  end
+
+  test "asl zero page" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0x06)
+    write(0x0101, 0x84)
+    write(0x0084, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x04} == read(0x0084)
+  end
+
+  test "asl zero page x" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0x16)
+    write(0x0101, 0x84)
+    write(0x0085, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x04} == read(0x0085)
+  end
+
+  test "asl absolute" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0x0E)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0084, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x04} = read(0x0084)
+  end
+
+  test "asl absolute x" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0x1E)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0085, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x04} = read(0x0085)
+  end
+
+  test "asl c flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xFF})
+    write(0x0100, 0x0A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+  end
+
+  test "asl c flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x01})
+    write(0x0100, 0x0A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 1) == 0
+  end
+
+  test "asl z flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x00})
+    write(0x0100, 0x0A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "asl z flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x02})
+    write(0x0100, 0x0A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "asl n flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xFE})
+    write(0x0100, 0x0A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "asl n flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x01})
+    write(0x0100, 0x0A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "lsr accumulator" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x02})
+    write(0x0100, 0x4A)
+    MOS6502.step()
+    assert %{accumulator: 0x01} = get_registers()
+  end
+
+  test "lsr zero page" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0x46)
+    write(0x0101, 0x84)
+    write(0x0084, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x01} == read(0x0084)
+  end
+
+  test "lsr zero page x" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0x56)
+    write(0x0101, 0x84)
+    write(0x0085, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x01} == read(0x0085)
+  end
+
+  test "lsr absolute" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0x4E)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0084, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x01} = read(0x0084)
+  end
+
+  test "lsr absolute x" do
+    set_registers(%{get_registers() | program_counter: 0x0100, x: 0x01})
+    write(0x0100, 0x5E)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0085, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x01} = read(0x0085)
+  end
+
+  test "lsr c flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xFF})
+    write(0x0100, 0x4A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+  end
+
+  test "lsr c flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x10})
+    write(0x0100, 0x4A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 1) == 0
+  end
+
+  test "lsr z flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x01})
+    write(0x0100, 0x4A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "lsr z flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x02})
+    write(0x0100, 0x4A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "lsr n flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x01})
+    write(0x0100, 0x4A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "rol accumulator" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x02, processor_status: processor_status})
+    write(0x0100, 0x2A)
+    MOS6502.step()
+    assert %{accumulator: 0x05} = get_registers()
+  end
+
+  test "rol zero page" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status})
+    write(0x0100, 0x26)
+    write(0x0101, 0x84)
+    write(0x0084, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x05} == read(0x0084)
+  end
+
+  test "rol zero page x" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status, x: 0x01})
+    write(0x0100, 0x36)
+    write(0x0101, 0x84)
+    write(0x0085, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x05} == read(0x0085)
+  end
+
+  test "rol absolute" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status})
+    write(0x0100, 0x2E)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0084, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x05} == read(0x0084)
+  end
+
+  test "rol absolute x" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status, x: 0x01})
+    write(0x0100, 0x3E)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0085, 0x02)
+    MOS6502.step()
+    assert {:ok, 0x05} == read(0x0085)
+  end
+
+  test "rol c flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x80})
+    write(0x0100, 0x2A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+  end
+
+  test "rol c flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x01})
+    write(0x0100, 0x2A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 1) == 0
+  end
+
+  test "rol z flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x00})
+    write(0x0100, 0x2A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "rol z flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x02})
+    write(0x0100, 0x2A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "rol n flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xFE})
+    write(0x0100, 0x2A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "rol n flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x01})
+    write(0x0100, 0x2A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "ror accumulator" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x08, processor_status: processor_status})
+    write(0x0100, 0x6A)
+    MOS6502.step()
+    assert %{accumulator: 0x84} = get_registers()
+  end
+
+  test "ror zero page" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status})
+    write(0x0100, 0x66)
+    write(0x0101, 0x84)
+    write(0x0084, 0x08)
+    MOS6502.step()
+    assert {:ok, 0x84} == read(0x0084)
+  end
+
+  test "ror zero page x" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status, x: 0x01})
+    write(0x0100, 0x76)
+    write(0x0101, 0x84)
+    write(0x0085, 0x08)
+    MOS6502.step()
+    assert {:ok, 0x84} == read(0x0085)
+  end
+
+  test "ror absolute" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status})
+    write(0x0100, 0x6E)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0084, 0x08)
+    MOS6502.step()
+    assert {:ok, 0x84} == read(0x0084)
+  end
+
+  test "ror absolute x" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status, x: 0x01})
+    write(0x0100, 0x7E)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0085, 0x08)
+    MOS6502.step()
+    assert {:ok, 0x84} == read(0x0085)
+  end
+
+  test "ror c flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x01})
+    write(0x0100, 0x6A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 1) == 0
+  end
+
+  test "ror c flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x10})
+    write(0x0100, 0x6A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 1) == 0
+  end
+
+  test "ror z flag set" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x00})
+    write(0x0100, 0x6A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 2) == 0
+  end
+
+  test "ror z flag unset" do
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x02})
+    write(0x0100, 0x6A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 2) == 0
+  end
+
+  test "ror n flag set" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 1
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xFE, processor_status: processor_status})
+    write(0x0100, 0x6A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    refute (processor_status &&& 128) == 0
+  end
+
+  test "ror n flag unset" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status &&& ~~~1
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x01, processor_status: processor_status})
+    write(0x0100, 0x6A)
+    MOS6502.step()
+    %{processor_status: processor_status} = get_registers()
+    assert (processor_status &&& 128) == 0
+  end
+
+  test "jmp" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0x4C)
+    write(0x0101, 0xFF)
+    write(0x0102, 0x01)
+    MOS6502.step()
+    assert %{program_counter: 0x01FF} = get_registers()
+  end
+
+  test "jmp indirect" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0x6C)
+    write(0x0101, 0x84)
+    write(0x0102, 0x01)
+    write(0x0184, 0xFF)
+    write(0x0185, 0xFF)
+    MOS6502.step()
+    assert %{program_counter: 0xFFFF} = get_registers()
+  end
+
+  test "jsr - case 1" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0x20)
+    write(0x0101, 0xFF)
+    write(0x0102, 0x01)
+    MOS6502.step()
+    assert %{program_counter: 0x01FF} = get_registers()
+    assert {:ok, 0x01} = read(0x01FD)
+    assert {:ok, 0x02} = read(0x01FC)
+  end
+
+  test "jsr - case 2" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0x20)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0084, 0x60)
+    MOS6502.step()
+    MOS6502.step()
+    assert %{program_counter: 0x0103, stack_pointer: 0xFD} = get_registers()
+  end
+
+  test "jsr - case 3" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    write(0x0100, 0x20)
+    write(0x0101, 0x84)
+    write(0x0102, 0x00)
+    write(0x0103, 0xA9)
+    write(0x0104, 0xFF)
+    write(0x0105, 0x02)
+    write(0x0084, 0x60)
+    MOS6502.step()
+    assert %{accumulator: 0xFF} = get_registers()
   end
 
   # Helpers
