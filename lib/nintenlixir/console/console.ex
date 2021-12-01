@@ -48,7 +48,7 @@ defmodule Nintenlixir.Console do
     RP2C02.define_interrupt(&MOS6502.nmi/0)
     schedule_execution()
   end
-  
+
   def set_cpu_mirroring do
     ram =
       Enum.map(0x0800..0x1FFF, fn address ->

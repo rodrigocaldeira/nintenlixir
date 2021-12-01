@@ -211,7 +211,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
         registers
         | processor_status:
             (p &&& ~~~@overflow_flag) |||
-              (~~~(bxor(term1, term2)) &&& bxor(term1, result) &&&
+              (~~~bxor(term1, term2) &&& bxor(term1, result) &&&
                  @negative_flag) >>> 1
       })
 
@@ -287,11 +287,11 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def indirect_address(:x) do
     %{program_counter: pc, x: x} = registers = get_registers()
     {:ok, value} = read_memory(pc)
-    address = (value + x) &&& 0xFFFF
-    :ok = set_registers(%{registers | program_counter: (pc + 1) &&& 0xFFFF})
+    address = value + x &&& 0xFFFF
+    :ok = set_registers(%{registers | program_counter: pc + 1 &&& 0xFFFF})
 
     {:ok, low} = read_memory(address)
-    {:ok, high} = read_memory((address + 1) &&& 0x00FF)
+    {:ok, high} = read_memory(address + 1 &&& 0x00FF)
 
     {:ok, high <<< 8 ||| low}
   end
@@ -303,7 +303,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     {:ok, address} = read_memory(pc)
     address = address &&& 0xFFFF
     {:ok, low} = read_memory(address)
-    {:ok, high} = read_memory((address + 1) &&& 0x00FF)
+    {:ok, high} = read_memory(address + 1 &&& 0x00FF)
 
     value = high <<< 8 ||| low
 
@@ -431,6 +431,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     {:ok, _} = set_Z_flag(value &&& a)
 
     %{processor_status: p} = get_registers()
+
     p =
       (p &&& ~~~(@negative_flag ||| @overflow_flag)) |||
         (value &&& (@negative_flag ||| @overflow_flag))
@@ -448,7 +449,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     a = a &&& 0xFFFF
 
     if !decimal_mode || (p &&& @decimal_mode) == 0 do
-      {:ok, result} = set_C_flag_addition(a + value + ((p &&& @carry_flag) &&& 0xFFFF))
+      {:ok, result} = set_C_flag_addition(a + value + (p &&& @carry_flag &&& 0xFFFF))
       result = result &&& 0xFF
       {:ok, ^result} = set_V_flag_addition(a, value, result)
       {:ok, ^result} = set_ZN_flags(result)
@@ -457,7 +458,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
       low = (a &&& 0x000F) + (value &&& 0x000F) + (p &&& @carry_flag)
       high = (a &&& 0x00F0) + (value &&& 0x00F0)
 
-      {low, high} = 
+      {low, high} =
         if low >= 0x000A do
           {low - 0x000A, high + 0x0010}
         else
@@ -563,9 +564,10 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{processor_status: p} = get_registers()
 
     c = (value &&& @negative_flag) >>> 7
+
     value =
       ((value <<< 1 &&& ~~~@carry_flag) |||
-        (p &&& @carry_flag)) &&& 0x00FF
+         (p &&& @carry_flag)) &&& 0x00FF
 
     :ok = update_shifted_value(value, c)
     :ok = store(value, ref)
@@ -575,6 +577,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     %{processor_status: p} = get_registers()
 
     c = value &&& @carry_flag
+
     value =
       (value >>> 1 &&& ~~~@negative_flag) |||
         (p &&& @carry_flag) <<< 7
@@ -907,7 +910,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
           absolute_address()
       end
     else
-        case opcode >>> 2 &&& 0x03 do
+      case opcode >>> 2 &&& 0x03 do
         0x00 ->
           indirect_address(:y)
 
@@ -1092,7 +1095,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
           {:ok, cycles + inst_cycles}
       end
     else
-        {:error, {:invalid_opcode, 0}}
+      {:error, {:invalid_opcode, 0}}
     end
   end
 

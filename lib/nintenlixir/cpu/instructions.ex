@@ -727,7 +727,19 @@ defmodule Nintenlixir.CPU.Instructions do
     @ror_absolute_x
   ]
 
-  @all_opcodes @noop_opcodes ++ @un_noop_address_1 ++ @un_noop_address_2 ++ @alu_opcodes ++ @rmw_opcodes ++ @control_opcodes ++ @branching_opcodes ++ @single_opcodes ++ @unofficial_opcodes ++ @zero_page_opcodes ++ @zero_page_x_opcodes ++ @absolute_opcodes ++ @absolute_x_opcodes ++ [@inx, @iny, @dex, @dey, @jmp_indirect]
+  @all_opcodes @noop_opcodes ++
+                 @un_noop_address_1 ++
+                 @un_noop_address_2 ++
+                 @alu_opcodes ++
+                 @rmw_opcodes ++
+                 @control_opcodes ++
+                 @branching_opcodes ++
+                 @single_opcodes ++
+                 @unofficial_opcodes ++
+                 @zero_page_opcodes ++
+                 @zero_page_x_opcodes ++
+                 @absolute_opcodes ++
+                 @absolute_x_opcodes ++ [@inx, @iny, @dex, @dey, @jmp_indirect]
 
   def valid_opcode?(opcode) when opcode in @all_opcodes, do: true
 

@@ -9,7 +9,7 @@ defmodule Nintenlixir.CPU.InstructionTest do
     start_supervised(MOS6502)
     start_supervised({Memory, MOS6502.memory_server_name()})
     :ok = MOS6502.reset()
-    :ok = MOS6502.set_state(%{MOS6502.get_state | break_error: true})
+    :ok = MOS6502.set_state(%{MOS6502.get_state() | break_error: true})
     :ok
   end
 
@@ -601,45 +601,45 @@ defmodule Nintenlixir.CPU.InstructionTest do
   end
 
   test "and absolute" do
-    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xff})
-    write(0x0100, 0x2d)
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xFF})
+    write(0x0100, 0x2D)
     write(0x0101, 0x84)
     write(0x0102, 0x00)
-    write(0x0084, 0x0f)
+    write(0x0084, 0x0F)
     MOS6502.step()
-    assert %{accumulator: 0x0f} = get_registers()
+    assert %{accumulator: 0x0F} = get_registers()
   end
 
   test "and absolute x" do
-    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xff, x: 0x01})
-    write(0x0100, 0x3d)
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xFF, x: 0x01})
+    write(0x0100, 0x3D)
     write(0x0101, 0x84)
     write(0x0102, 0x00)
-    write(0x0085, 0x0f)
+    write(0x0085, 0x0F)
     MOS6502.step()
-    assert %{accumulator: 0x0f} = get_registers()
+    assert %{accumulator: 0x0F} = get_registers()
   end
 
   test "and indirect x" do
-    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xff, x: 0x01})
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xFF, x: 0x01})
     write(0x0100, 0x21)
     write(0x0101, 0x84)
     write(0x0085, 0x87)
     write(0x0086, 0x00)
     write(0x0087, 0x0F)
     MOS6502.step()
-    assert %{accumulator: 0x0f} = get_registers()
+    assert %{accumulator: 0x0F} = get_registers()
   end
 
   test "and indirect y" do
-    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xff, y: 0x01})
+    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xFF, y: 0x01})
     write(0x0100, 0x31)
     write(0x0101, 0x84)
     write(0x0084, 0x86)
     write(0x0085, 0x00)
     write(0x0087, 0x0F)
     MOS6502.step()
-    assert %{accumulator: 0x0f} = get_registers()
+    assert %{accumulator: 0x0F} = get_registers()
   end
 
   test "and_z_flag_set" do
@@ -994,20 +994,41 @@ defmodule Nintenlixir.CPU.InstructionTest do
     MOS6502.step()
     assert %{accumulator: 0x03, processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 8
-    set_registers(%{get_registers() | processor_status: processor_status, program_counter: 0x0100, accumulator: 0x29})
+
+    set_registers(%{
+      get_registers()
+      | processor_status: processor_status,
+        program_counter: 0x0100,
+        accumulator: 0x29
+    })
+
     write(0x0100, 0x69)
     write(0x0101, 0x11)
     MOS6502.step()
     assert %{accumulator: 0x40, processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 8
-    set_registers(%{get_registers() | processor_status: processor_status, program_counter: 0x0100, accumulator: 0x29 ||| (128 &&& 0x00FF)})
+
+    set_registers(%{
+      get_registers()
+      | processor_status: processor_status,
+        program_counter: 0x0100,
+        accumulator: 0x29 ||| (128 &&& 0x00FF)
+    })
+
     write(0x0100, 0x69)
     write(0x0101, 0x29)
     MOS6502.step()
     assert %{accumulator: 0x38, processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 8
     processor_status = processor_status ||| 1
-    set_registers(%{get_registers() | processor_status: processor_status, program_counter: 0x0100, accumulator: 0x58})
+
+    set_registers(%{
+      get_registers()
+      | processor_status: processor_status,
+        program_counter: 0x0100,
+        accumulator: 0x58
+    })
+
     write(0x0100, 0x69)
     write(0x0101, 0x46)
     MOS6502.step()
@@ -1092,7 +1113,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
     %{processor_status: processor_status} = get_registers()
     refute (processor_status &&& 1) == 0
     processor_status = processor_status ||| 1
-    set_registers(%{get_registers() | accumulator: 0xFF, program_counter: 0x0100, processor_status: processor_status})
+
+    set_registers(%{
+      get_registers()
+      | accumulator: 0xFF,
+        program_counter: 0x0100,
+        processor_status: processor_status
+    })
+
     write(0x0100, 0x69)
     write(0x0101, 0x00)
     MOS6502.step()
@@ -1108,7 +1136,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
     %{processor_status: processor_status} = get_registers()
     assert (processor_status &&& 1) == 0
     processor_status = processor_status &&& ~~~1
-    set_registers(%{get_registers() | accumulator: 0x00, program_counter: 0x0100, processor_status: processor_status})
+
+    set_registers(%{
+      get_registers()
+      | accumulator: 0x00,
+        program_counter: 0x0100,
+        processor_status: processor_status
+    })
+
     write(0x0100, 0x69)
     write(0x0101, 0x01)
     MOS6502.step()
@@ -1124,7 +1159,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
     %{processor_status: processor_status} = get_registers()
     refute (processor_status &&& 2) == 0
     processor_status = processor_status ||| 1
-    set_registers(%{get_registers() | accumulator: 0xFE, program_counter: 0x0100, processor_status: processor_status})
+
+    set_registers(%{
+      get_registers()
+      | accumulator: 0xFE,
+        program_counter: 0x0100,
+        processor_status: processor_status
+    })
+
     write(0x0100, 0x69)
     write(0x0101, 0x01)
     MOS6502.step()
@@ -1185,13 +1227,27 @@ defmodule Nintenlixir.CPU.InstructionTest do
 
   test "sbc immediate" do
     %{processor_status: processor_status} = get_registers()
-    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1})
+
+    set_registers(%{
+      get_registers()
+      | accumulator: 0x02,
+        program_counter: 0x0100,
+        processor_status: processor_status ||| 1
+    })
+
     write(0x0100, 0xE9)
     write(0x0101, 0x01)
     MOS6502.step()
     assert %{accumulator: 0x01, processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 8
-    set_registers(%{get_registers() | accumulator: 0x29, program_counter: 0x0100, processor_status: processor_status})
+
+    set_registers(%{
+      get_registers()
+      | accumulator: 0x29,
+        program_counter: 0x0100,
+        processor_status: processor_status
+    })
+
     write(0x0100, 0xE9)
     write(0x0101, 0x11)
     MOS6502.step()
@@ -1200,7 +1256,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
 
   test "sbc zero page" do
     %{processor_status: processor_status} = get_registers()
-    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1})
+
+    set_registers(%{
+      get_registers()
+      | accumulator: 0x02,
+        program_counter: 0x0100,
+        processor_status: processor_status ||| 1
+    })
+
     write(0x0100, 0xE5)
     write(0x0101, 0x84)
     write(0x0084, 0x01)
@@ -1210,7 +1273,15 @@ defmodule Nintenlixir.CPU.InstructionTest do
 
   test "sbc zero page x" do
     %{processor_status: processor_status} = get_registers()
-    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1, x: 0x01})
+
+    set_registers(%{
+      get_registers()
+      | accumulator: 0x02,
+        program_counter: 0x0100,
+        processor_status: processor_status ||| 1,
+        x: 0x01
+    })
+
     write(0x0100, 0xF5)
     write(0x0101, 0x84)
     write(0x0085, 0x01)
@@ -1220,7 +1291,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
 
   test "sbc absolute" do
     %{processor_status: processor_status} = get_registers()
-    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1})
+
+    set_registers(%{
+      get_registers()
+      | accumulator: 0x02,
+        program_counter: 0x0100,
+        processor_status: processor_status ||| 1
+    })
+
     write(0x0100, 0xED)
     write(0x0101, 0x84)
     write(0x0102, 0x00)
@@ -1231,7 +1309,15 @@ defmodule Nintenlixir.CPU.InstructionTest do
 
   test "sbc absolute x" do
     %{processor_status: processor_status} = get_registers()
-    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1, x: 0x01})
+
+    set_registers(%{
+      get_registers()
+      | accumulator: 0x02,
+        program_counter: 0x0100,
+        processor_status: processor_status ||| 1,
+        x: 0x01
+    })
+
     write(0x0100, 0xFD)
     write(0x0101, 0x84)
     write(0x0102, 0x00)
@@ -1242,7 +1328,15 @@ defmodule Nintenlixir.CPU.InstructionTest do
 
   test "sbc absolute y" do
     %{processor_status: processor_status} = get_registers()
-    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1, y: 0x01})
+
+    set_registers(%{
+      get_registers()
+      | accumulator: 0x02,
+        program_counter: 0x0100,
+        processor_status: processor_status ||| 1,
+        y: 0x01
+    })
+
     write(0x0100, 0xF9)
     write(0x0101, 0x84)
     write(0x0102, 0x00)
@@ -1253,7 +1347,15 @@ defmodule Nintenlixir.CPU.InstructionTest do
 
   test "sbc indirect x" do
     %{processor_status: processor_status} = get_registers()
-    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1, x: 0x01})
+
+    set_registers(%{
+      get_registers()
+      | accumulator: 0x02,
+        program_counter: 0x0100,
+        processor_status: processor_status ||| 1,
+        x: 0x01
+    })
+
     write(0x0100, 0xE1)
     write(0x0101, 0x84)
     write(0x0085, 0x87)
@@ -1265,7 +1367,15 @@ defmodule Nintenlixir.CPU.InstructionTest do
 
   test "sbc indirect y" do
     %{processor_status: processor_status} = get_registers()
-    set_registers(%{get_registers() | accumulator: 0x02, program_counter: 0x0100, processor_status: processor_status ||| 1, y: 0x01})
+
+    set_registers(%{
+      get_registers()
+      | accumulator: 0x02,
+        program_counter: 0x0100,
+        processor_status: processor_status ||| 1,
+        y: 0x01
+    })
+
     write(0x0100, 0xF1)
     write(0x0101, 0x84)
     write(0x0084, 0x86)
@@ -2178,7 +2288,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
   test "rol accumulator" do
     %{processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 1
-    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x02, processor_status: processor_status})
+
+    set_registers(%{
+      get_registers()
+      | program_counter: 0x0100,
+        accumulator: 0x02,
+        processor_status: processor_status
+    })
+
     write(0x0100, 0x2A)
     MOS6502.step()
     assert %{accumulator: 0x05} = get_registers()
@@ -2187,7 +2304,9 @@ defmodule Nintenlixir.CPU.InstructionTest do
   test "rol zero page" do
     %{processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 1
+
     set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status})
+
     write(0x0100, 0x26)
     write(0x0101, 0x84)
     write(0x0084, 0x02)
@@ -2198,7 +2317,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
   test "rol zero page x" do
     %{processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 1
-    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status, x: 0x01})
+
+    set_registers(%{
+      get_registers()
+      | program_counter: 0x0100,
+        processor_status: processor_status,
+        x: 0x01
+    })
+
     write(0x0100, 0x36)
     write(0x0101, 0x84)
     write(0x0085, 0x02)
@@ -2209,7 +2335,9 @@ defmodule Nintenlixir.CPU.InstructionTest do
   test "rol absolute" do
     %{processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 1
+
     set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status})
+
     write(0x0100, 0x2E)
     write(0x0101, 0x84)
     write(0x0102, 0x00)
@@ -2221,7 +2349,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
   test "rol absolute x" do
     %{processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 1
-    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status, x: 0x01})
+
+    set_registers(%{
+      get_registers()
+      | program_counter: 0x0100,
+        processor_status: processor_status,
+        x: 0x01
+    })
+
     write(0x0100, 0x3E)
     write(0x0101, 0x84)
     write(0x0102, 0x00)
@@ -2281,7 +2416,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
   test "ror accumulator" do
     %{processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 1
-    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x08, processor_status: processor_status})
+
+    set_registers(%{
+      get_registers()
+      | program_counter: 0x0100,
+        accumulator: 0x08,
+        processor_status: processor_status
+    })
+
     write(0x0100, 0x6A)
     MOS6502.step()
     assert %{accumulator: 0x84} = get_registers()
@@ -2290,7 +2432,9 @@ defmodule Nintenlixir.CPU.InstructionTest do
   test "ror zero page" do
     %{processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 1
+
     set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status})
+
     write(0x0100, 0x66)
     write(0x0101, 0x84)
     write(0x0084, 0x08)
@@ -2301,7 +2445,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
   test "ror zero page x" do
     %{processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 1
-    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status, x: 0x01})
+
+    set_registers(%{
+      get_registers()
+      | program_counter: 0x0100,
+        processor_status: processor_status,
+        x: 0x01
+    })
+
     write(0x0100, 0x76)
     write(0x0101, 0x84)
     write(0x0085, 0x08)
@@ -2312,7 +2463,9 @@ defmodule Nintenlixir.CPU.InstructionTest do
   test "ror absolute" do
     %{processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 1
+
     set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status})
+
     write(0x0100, 0x6E)
     write(0x0101, 0x84)
     write(0x0102, 0x00)
@@ -2324,7 +2477,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
   test "ror absolute x" do
     %{processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 1
-    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status, x: 0x01})
+
+    set_registers(%{
+      get_registers()
+      | program_counter: 0x0100,
+        processor_status: processor_status,
+        x: 0x01
+    })
+
     write(0x0100, 0x7E)
     write(0x0101, 0x84)
     write(0x0102, 0x00)
@@ -2368,7 +2528,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
   test "ror n flag set" do
     %{processor_status: processor_status} = get_registers()
     processor_status = processor_status ||| 1
-    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0xFE, processor_status: processor_status})
+
+    set_registers(%{
+      get_registers()
+      | program_counter: 0x0100,
+        accumulator: 0xFE,
+        processor_status: processor_status
+    })
+
     write(0x0100, 0x6A)
     MOS6502.step()
     %{processor_status: processor_status} = get_registers()
@@ -2378,7 +2545,14 @@ defmodule Nintenlixir.CPU.InstructionTest do
   test "ror n flag unset" do
     %{processor_status: processor_status} = get_registers()
     processor_status = processor_status &&& ~~~1
-    set_registers(%{get_registers() | program_counter: 0x0100, accumulator: 0x01, processor_status: processor_status})
+
+    set_registers(%{
+      get_registers()
+      | program_counter: 0x0100,
+        accumulator: 0x01,
+        processor_status: processor_status
+    })
+
     write(0x0100, 0x6A)
     MOS6502.step()
     %{processor_status: processor_status} = get_registers()
@@ -2440,12 +2614,291 @@ defmodule Nintenlixir.CPU.InstructionTest do
     assert %{accumulator: 0xFF} = get_registers()
   end
 
+  test "rts" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    MOS6502.push16(0x0102)
+    write(0x0100, 0x60)
+    MOS6502.step()
+    assert %{program_counter: 0x0103} = get_registers()
+  end
+
+  test "bcc" do
+    %{processor_status: processor_status} = get_registers()
+    processor_status = processor_status ||| 1
+
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status})
+
+    write(0x0100, 0x90)
+    assert {:ok, 2} = MOS6502.step()
+    assert %{program_counter: 0x0102, processor_status: processor_status} = get_registers()
+    processor_status = processor_status &&& ~~~1
+
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status})
+
+    write(0x0100, 0x90)
+    write(0x0101, 0x02)
+    assert {:ok, 3} = MOS6502.step()
+    assert %{program_counter: 0x0104, processor_status: processor_status} = get_registers()
+    processor_status = processor_status &&& ~~~1
+
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: processor_status})
+
+    write(0x0100, 0x90)
+    write(0x0101, 0xFD)
+    assert {:ok, 4} = MOS6502.step()
+    assert %{program_counter: 0x00FF} = get_registers()
+  end
+
+  for {instruction, opcode, fn_status} <- [
+        {0xB0, "bcs",
+         quote do
+           fn processor_status -> processor_status ||| 1 end
+         end},
+        {0xF0, "beq",
+         quote do
+           fn processor_status -> processor_status ||| 2 end
+         end},
+        {0x70, "bvs",
+         quote do
+           fn processor_status -> processor_status ||| 64 end
+         end},
+        {0x30, "bmi",
+         quote do
+           fn processor_status -> processor_status ||| 128 end
+         end},
+        {0xD0, "bne",
+         quote do
+           fn processor_status -> processor_status &&& ~~~2 end
+         end},
+        {0x10, "bpl",
+         quote do
+           fn processor_status -> processor_status &&& ~~~128 end
+         end},
+        {0x50, "bvc",
+         quote do
+           fn processor_status -> processor_status &&& ~~~64 end
+         end}
+      ] do
+    test opcode do
+      %{processor_status: processor_status} = get_registers()
+      processor_status = unquote(fn_status).(processor_status)
+
+      set_registers(%{
+        get_registers()
+        | program_counter: 0x0100,
+          processor_status: processor_status
+      })
+
+      write(0x0100, unquote(instruction))
+      write(0x0101, 0x02)
+      MOS6502.step()
+      assert %{program_counter: 0x0104} = get_registers()
+      %{processor_status: processor_status} = get_registers()
+      processor_status = unquote(fn_status).(processor_status)
+
+      set_registers(%{
+        get_registers()
+        | program_counter: 0x0100,
+          processor_status: processor_status
+      })
+
+      write(0x0100, unquote(instruction))
+      write(0x0101, 0xFE)
+      MOS6502.step()
+      assert %{program_counter: 0x0100} = get_registers()
+    end
+  end
+
+  for {instruction, opcode, flag, fn_comp, fn_status_1, fn_status_2} <- [
+        {0x18, "clc", 1,
+         quote do
+           &Kernel.==/2
+         end,
+         quote do
+           fn processor_status ->
+             processor_status &&& ~~~1
+           end
+         end,
+         quote do
+           fn processor_status ->
+             processor_status ||| 1
+           end
+         end},
+        {0xD8, "cld", 8,
+         quote do
+           &Kernel.==/2
+         end,
+         quote do
+           fn processor_status ->
+             processor_status &&& ~~~8
+           end
+         end,
+         quote do
+           fn processor_status ->
+             processor_status ||| 8
+           end
+         end},
+        {0x58, "cli", 4,
+         quote do
+           &Kernel.==/2
+         end,
+         quote do
+           fn processor_status ->
+             processor_status &&& ~~~4
+           end
+         end,
+         quote do
+           fn processor_status ->
+             processor_status ||| 4
+           end
+         end},
+        {0xB8, "clv", 64,
+         quote do
+           &Kernel.==/2
+         end,
+         quote do
+           fn processor_status ->
+             processor_status &&& ~~~64
+           end
+         end,
+         quote do
+           fn processor_status ->
+             processor_status ||| 64
+           end
+         end},
+        {0x38, "sec", 1,
+         quote do
+           &Kernel.!=/2
+         end,
+         quote do
+           fn processor_status ->
+             processor_status &&& ~~~1
+           end
+         end,
+         quote do
+           fn processor_status ->
+             processor_status ||| 1
+           end
+         end},
+        {0xF8, "sed", 8,
+         quote do
+           &Kernel.!=/2
+         end,
+         quote do
+           fn processor_status ->
+             processor_status &&& ~~~8
+           end
+         end,
+         quote do
+           fn processor_status ->
+             processor_status ||| 8
+           end
+         end},
+        {0x78, "sei", 4,
+         quote do
+           &Kernel.!=/2
+         end,
+         quote do
+           fn processor_status ->
+             processor_status &&& ~~~4
+           end
+         end,
+         quote do
+           fn processor_status ->
+             processor_status ||| 4
+           end
+         end}
+      ] do
+    test opcode do
+      %{processor_status: processor_status} = get_registers()
+      processor_status = unquote(fn_status_1).(processor_status)
+
+      set_registers(%{
+        get_registers()
+        | program_counter: 0x0100,
+          processor_status: processor_status
+      })
+
+      write(0x0100, unquote(instruction))
+      MOS6502.step()
+      %{processor_status: processor_status} = get_registers()
+      assert unquote(fn_comp).(processor_status &&& unquote(flag), 0)
+      %{processor_status: processor_status} = get_registers()
+      processor_status = unquote(fn_status_2).(processor_status)
+
+      set_registers(%{
+        get_registers()
+        | program_counter: 0x0100,
+          processor_status: processor_status
+      })
+
+      write(0x0100, unquote(instruction))
+      MOS6502.step()
+      %{processor_status: processor_status} = get_registers()
+      assert unquote(fn_comp).(processor_status &&& unquote(flag), 0)
+    end
+  end
+
+  test "brk" do
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: 0xFF &&& ~~~16})
+    write(0x0100, 0x00)
+    write(0xFFFE, 0xFF)
+    write(0xFFFF, 0x01)
+    MOS6502.step()
+    assert {:ok, 0xFF} = MOS6502.pop()
+    assert {:ok, 0x0102} = MOS6502.pop16()
+    assert %{program_counter: 0x01FF} = get_registers()
+  end
+
+  test "rti" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    MOS6502.push16(0x0102)
+    MOS6502.push(0x03)
+    write(0x0100, 0x40)
+    MOS6502.step()
+    assert %{program_counter: 0x0102, processor_status: 0x03} = get_registers()
+  end
+
+  test "irq" do
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: 0xFB})
+    MOS6502.irq()
+    write(0xFFFE, 0x40)
+    write(0xFFFF, 0x01)
+    MOS6502.interrupt()
+    assert {:ok, 0xEB} = MOS6502.pop()
+    assert {:ok, 0x0100} = MOS6502.pop16()
+    assert %{program_counter: 0x0140} = get_registers()
+    assert %{irq: false} = MOS6502.get_state()
+  end
+
+  test "nmi" do
+    set_registers(%{get_registers() | program_counter: 0x0100, processor_status: 0xFF})
+    MOS6502.nmi()
+    write(0xFFFA, 0x40)
+    write(0xFFFB, 0x01)
+    MOS6502.interrupt()
+    assert {:ok, 0xEF} = MOS6502.pop()
+    assert {:ok, 0x0100} = MOS6502.pop16()
+    assert %{program_counter: 0x0140} = get_registers()
+    assert %{nmi: false} = MOS6502.get_state()
+  end
+
+  test "rst" do
+    set_registers(%{get_registers() | program_counter: 0x0100})
+    MOS6502.rst()
+    write(0xFFFC, 0x40)
+    write(0xFFFD, 0x01)
+    MOS6502.interrupt()
+    assert %{program_counter: 0x0140} = get_registers()
+    assert %{rst: false} = MOS6502.get_state()
+  end
+
   # Helpers
   def get_registers, do: MOS6502.get_registers()
 
   def set_registers(registers),
     do: MOS6502.set_registers(registers)
 
-    defp read(address), do: Memory.read(MOS6502.memory_server_name(), address)  
+  defp read(address), do: Memory.read(MOS6502.memory_server_name(), address)
   defp write(address, value), do: Memory.write(MOS6502.memory_server_name(), address, value)
 end
