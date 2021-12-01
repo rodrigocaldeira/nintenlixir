@@ -79,7 +79,6 @@ defmodule Nintenlixir.PPU.PPUMapper do
   end
 
   def write(write_address, data) do
-    IO.inspect("WRITE PPUMAPPER")
     RP2C02.set_state(%{RP2C02.get_state() | latch_value: data})
 
     case write_address do
