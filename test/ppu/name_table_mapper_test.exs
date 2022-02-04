@@ -33,7 +33,10 @@ defmodule Nintenlixir.PPU.NameTableMapperTest do
     end
 
     test "NameTableMapper.build_mappings/2", %{mapper: mapper} do
-      mappings = Enum.map(0x2000..0x2FFF, fn address -> {address, mapper} end) |> Map.new()
+      mappings = {
+        Enum.map(0x2000..0x2FFF, fn address -> {address, mapper} end) |> Map.new(),
+        Enum.map(0x2000..0x2FFF, fn address -> {address, mapper} end) |> Map.new()
+      }
       assert mappings == Mapper.build_mappings(mapper, :ppu)
     end
 
@@ -49,7 +52,7 @@ defmodule Nintenlixir.PPU.NameTableMapperTest do
 
     test "NameTableMapper.read/3", %{mapper: mapper} do
       assert :ok = Mapper.write(mapper, 0x2000, 0x0E, nil)
-      assert {:ok, 0x0E} = Mapper.read(mapper, 0x2000, nil)
+      assert 0x0E = Mapper.read(mapper, 0x2000, nil)
     end
   end
 

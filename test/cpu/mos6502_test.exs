@@ -313,24 +313,11 @@ defmodule Nintenlixir.CPU.MOS6502Test do
   test "MOS6502.indirect_address/1 indexed by register X" do
     %{program_counter: pc} = registers = get_registers()
     set_registers(%{registers | x: 1})
-    write_memory(pc + 1, 0xFE)
-    write_memory(pc + 2 &&& 0x00FF, 0xCA)
-
-    write_memory(0xCAFE, 0xFE)
-    write_memory(0xCAFF, 0xCA)
+    write_memory(pc, 0xC9)
+    write_memory(0xCA, 0xFE)
+    write_memory(0xCB, 0xCA)
 
     assert {:ok, 0xCAFE} = MOS6502.indirect_address(:x)
-    assert %{program_counter: 0xFFFD} = get_registers()
-  end
-
-  test "MOS6502.indirect_address/1 indexed by register Y without page cross" do
-    %{program_counter: pc} = registers = get_registers()
-    set_registers(%{registers | y: 1})
-
-    write_memory(pc, 0xFE)
-    write_memory(pc + 1 &&& 0x00FF, 0xCA)
-
-    assert {:ok, 0xCAFF, :same_page} = MOS6502.indirect_address(:y)
     assert %{program_counter: 0xFFFD} = get_registers()
   end
 
@@ -338,8 +325,9 @@ defmodule Nintenlixir.CPU.MOS6502Test do
     %{program_counter: pc} = registers = get_registers()
     set_registers(%{registers | y: 1})
 
-    write_memory(pc, 0xFF)
-    write_memory(pc + 1 &&& 0x00FF, 0xCA)
+    write_memory(pc, 0xCA)
+    write_memory(0xCA, 0xFF)
+    write_memory(0xCB, 0xCA)
 
     assert {:ok, 0xCB00, :page_cross} = MOS6502.indirect_address(:y)
     assert %{program_counter: 0xFFFD} = get_registers()
@@ -521,12 +509,6 @@ defmodule Nintenlixir.CPU.MOS6502Test do
     set_registers(%{registers | accumulator: 0x05})
     assert :ok = MOS6502.or_op(0xCAFE)
     assert %{accumulator: 0x07} = get_registers()
-  end
-
-  test "MOS6502.bit/1" do
-    write_memory(0xCAFE, 0x03)
-    assert :ok = MOS6502.bit(0xCAFE)
-    assert %{processor_status: 0x24} = get_registers()
   end
 
   test "MOS6502.disable_decimal_mode" do
@@ -979,20 +961,6 @@ defmodule Nintenlixir.CPU.MOS6502Test do
     assert :ok = MOS6502.rla(0xCAFE)
     assert {:ok, 0x1C} = read_memory(0xCAFE)
     assert %{accumulator: 0x00} = get_registers()
-  end
-
-  test "MOS6502.sre/1" do
-    write_memory(0xCAFE, 0x0E)
-    assert :ok = MOS6502.sre(0xCAFE)
-    assert {:ok, 0x07} = read_memory(0xCAFE)
-    assert %{accumulator: 0x07, processor_status: 0x25} = get_registers()
-  end
-
-  test "MOS6502.rra/1" do
-    write_memory(0xCAFE, 0x0E)
-    assert :ok = MOS6502.rra(0xCAFE)
-    assert {:ok, 0x07} = read_memory(0xCAFE)
-    assert %{accumulator: 0x08, processor_status: 0x64} = get_registers()
   end
 
   test "MOS6502.control_address/1" do

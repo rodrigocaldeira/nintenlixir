@@ -7,7 +7,7 @@ defmodule Nintenlixir.Memory.DummyMapper do
   def read(_address), do: "DUMMY MAPPER"
 
   def write(_address, data, memory) do
-    List.replace_at(memory, data, 0xCAFE)
+    List.replace_at(memory, data, 0xCA)
   end
 
   defimpl Mapper, for: DummyMapper do
@@ -20,13 +20,21 @@ defmodule Nintenlixir.Memory.DummyMapper do
     end
 
     def build_mappings(mapper, :cpu) do
-      Enum.map(0x1000..0x1FFF, fn address -> {address, mapper} end)
-      |> Map.new()
+      {
+        Enum.map(0x1000..0x1FFF, fn address -> {address, mapper} end)
+        |> Map.new(),
+        Enum.map(0x1000..0x1FFF, fn address -> {address, mapper} end)
+        |> Map.new()
+      }
     end
 
     def build_mappings(mapper, :ppu) do
-      Enum.map(0x2000..0x2FFF, fn address -> {address, mapper} end)
-      |> Map.new()
+      {
+        Enum.map(0x2000..0x2FFF, fn address -> {address, mapper} end)
+        |> Map.new(),
+        Enum.map(0x2000..0x2FFF, fn address -> {address, mapper} end)
+        |> Map.new()
+      }
     end
   end
 end

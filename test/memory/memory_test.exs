@@ -81,8 +81,8 @@ defmodule Nintenlixir.MemoryTest do
     assert :ok = Memory.add_mapper(@processor, dummy_mapper, :cpu)
     assert :ok = Memory.add_mapper(@processor, dummy_mapper, :ppu)
 
-    assert :ok = Memory.write(@processor, 0x1000, 0x3FFF)
-    assert {:ok, 0xCAFE} = Memory.read(@processor, 0x3FFF)
+    assert :ok = Memory.write(@processor, 0x1000, 0x003F)
+    assert {:ok, 0xCA} = Memory.read(@processor, 0x003F)
 
     for address <- 0x1000..0x2FFF do
       assert {:ok, "DUMMY MAPPER"} = Memory.read(@processor, address)

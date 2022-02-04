@@ -365,7 +365,7 @@ defmodule Nintenlixir.PPU.RP2C02Test do
 
     Memory.write(:memory_ppu, 0x0103, 0xFF)
     PPUMapper.read(0x2007)
-    assert {:ok, 0xFF} = PPUMapper.read(0x2007)
+    assert 0xFF = PPUMapper.read(0x2007)
     assert %{registers: %{address: 0x0105}} = RP2C02.get_state()
 
     %{registers: registers} = RP2C02.get_state()
@@ -381,7 +381,7 @@ defmodule Nintenlixir.PPU.RP2C02Test do
     Memory.write(:memory_ppu, 0x3F01, 0xFF)
     Memory.write(:memory_ppu, 0x3F02, 0xFF)
 
-    assert {:ok, 0xFF} = PPUMapper.read(0x2007)
+    assert 0xFF = PPUMapper.read(0x2007)
     assert %{registers: %{address: 0x3F01}} = RP2C02.get_state()
   end
 

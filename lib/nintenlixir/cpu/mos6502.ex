@@ -257,7 +257,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def absolute_address do
     %{program_counter: pc} = registers = get_registers()
     {:ok, low} = read_memory(pc)
-    {:ok, high} = read_memory(pc + 1)
+    {:ok, high} = read_memory(pc + 1 &&& 0xFFFF)
     :ok = set_registers(%{registers | program_counter: pc + 2 &&& 0xFFFF})
 
     {:ok, high <<< 8 ||| low}
@@ -272,7 +272,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
   def indirect_address do
     %{program_counter: pc} = registers = get_registers()
     {:ok, low} = read_memory(pc)
-    {:ok, high} = read_memory(pc + 1)
+    {:ok, high} = read_memory(pc + 1 &&& 0xFFFF)
     :ok = set_registers(%{registers | program_counter: pc + 2 &&& 0xFFFF})
 
     address_high = high <<< 8 ||| low + 1
@@ -291,7 +291,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     :ok = set_registers(%{registers | program_counter: pc + 1 &&& 0xFFFF})
 
     {:ok, low} = read_memory(address)
-    {:ok, high} = read_memory(address + 1 &&& 0x00FF)
+    {:ok, high} = read_memory(address + 1 &&& 0xFFFF)
 
     {:ok, high <<< 8 ||| low}
   end
@@ -303,7 +303,7 @@ defmodule Nintenlixir.CPU.MOS6502 do
     {:ok, address} = read_memory(pc)
     address = address &&& 0xFFFF
     {:ok, low} = read_memory(address)
-    {:ok, high} = read_memory(address + 1 &&& 0x00FF)
+    {:ok, high} = read_memory(address + 1 &&& 0xFFFF)
 
     value = high <<< 8 ||| low
 

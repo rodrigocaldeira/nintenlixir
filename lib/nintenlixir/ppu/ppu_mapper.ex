@@ -186,13 +186,32 @@ defmodule Nintenlixir.PPU.PPUMapper do
 
   defimpl Mapper, for: PPUMapper do
     def build_mappings(mapper, :ppu) do
-      Enum.map(0x3F00..0x3F1F, fn address -> {address, mapper} end)
-      |> Map.new()
+      {
+        Enum.map(0x3F00..0x3F1F, fn address -> {address, mapper} end)
+        |> Map.new(),
+        Enum.map(0x3F00..0x3F1F, fn address -> {address, mapper} end)
+        |> Map.new()
+      }
     end
 
     def build_mappings(mapper, :cpu) do
-      Enum.map(0x2000..0x2007, fn address -> {address, mapper} end)
-      |> Map.new()
+      {
+        %{
+          0x2001 => mapper,
+          0x2002 => mapper,
+          0x2004 => mapper,
+          0x2007 => mapper
+        },
+        %{
+          0x2000 => mapper,
+          0x2001 => mapper,
+          0x2003 => mapper,
+          0x2004 => mapper,
+          0x2005 => mapper,
+          0x2006 => mapper,
+          0x2007 => mapper
+        }
+      }
     end
 
     def write(_mapper, address, data, memory) do

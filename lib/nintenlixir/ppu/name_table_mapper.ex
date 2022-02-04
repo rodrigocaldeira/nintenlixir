@@ -19,8 +19,12 @@ defmodule Nintenlixir.PPU.NameTableMapper do
     end
 
     def build_mappings(mapper, :ppu) do
-      Enum.map(0x2000..0x2FFF, fn address -> {address, mapper} end)
-      |> Map.new()
+      {
+        Enum.map(0x2000..0x2FFF, fn address -> {address, mapper} end)
+        |> Map.new(),
+        Enum.map(0x2000..0x2FFF, fn address -> {address, mapper} end)
+        |> Map.new()
+      }
     end
   end
 

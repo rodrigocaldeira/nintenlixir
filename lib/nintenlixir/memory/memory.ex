@@ -33,9 +33,9 @@ defmodule Nintenlixir.Memory do
   end
 
   def add_mapper(processor, mapper, reference) do
-    mappings = Mapper.build_mappings(mapper, reference)
-    :ok = GenServer.call(processor, {:set_read_mappers, mappings})
-    GenServer.call(processor, {:set_write_mappers, mappings})
+    {read_mappers, write_mappers} = Mapper.build_mappings(mapper, reference)
+    :ok = GenServer.call(processor, {:set_read_mappers, read_mappers})
+    GenServer.call(processor, {:set_write_mappers, write_mappers})
   end
 
   def disable_reads(processor) do
@@ -90,7 +90,6 @@ defmodule Nintenlixir.Memory do
           Mapper.read(mapper, address, memory)
           |> case do
             {:ok, _} = data ->
-              # IO.inspect("#{inspect(address)} -> #{inspect(mapper)}")
               data
 
             data ->
